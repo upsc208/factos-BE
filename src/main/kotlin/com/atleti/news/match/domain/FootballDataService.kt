@@ -1,0 +1,129 @@
+package com.atleti.news.match.domain
+
+import org.slf4j.LoggerFactory
+import com.atleti.news.news.domain.CollectionLog
+import com.atleti.news.news.domain.CollectionStatus
+import com.atleti.news.news.domain.CollectionLogRepository
+import kotlinx.coroutines.*
+import org.springframework.scheduling.annotation.Scheduled
+import org.springframework.stereotype.Service
+import org.springframework.transaction.support.TransactionTemplate
+import java.time.Duration
+import java.time.Instant
+import java.util.concurrent.atomic.AtomicReference
+import com.atleti.news.match.external.MatchScraperService
+
+@Service
+class FootballDataService(
+    private val collectionLogRepository: CollectionLogRepository,
+    private val matchResultRepository: MatchResultRepository,
+    private val upcomingMatchRepository: UpcomingMatchRepository,
+    private val matchScraperService: MatchScraperService,
+    private val transactionTemplate: TransactionTemplate
+) {
+    private val log = LoggerFactory.getLogger(FootballDataService::class.java)
+
+    private val serviceScope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
+
+    private val UPCOMING_LIMIT = 3
+
+    /** 킥오프 후 이 시간까지는 "다가올 경기"로 계속 노출한다 (채팅방 오픈 구간과 동일, redis-design 6.6) */
+    private val KEEP_AFTER_KICKOFF = Duration.ofHours(3)
+
+    /** DB가 비었을 때 요청마다 FotMob을 두드리지 않도록 하는 최소 간격 */
+    private val REFRESH_COOLDOWN = Duration.ofMinutes(10)
+    private val lastRefreshAttempt = AtomicReference(Instant.EPOCH)
+
+    suspend fun getRecentMatch(): MatchResult? =
+        matchResultRepository.findTopByOrderByMatchDateDesc()
+            ?: matchScraperService.scrapeAndSaveLatestMatch()
+
+    suspend fun getUpcomingMatches(): List<UpcomingMatch> {
+        loadFreshUpcoming().takeIf { it.isNotEmpty() }?.let { return it }
+
+        // 비어 있거나 전부 지난 경기뿐이면 즉시 갱신을 시도한다 (쿨다운 내에는 재시도하지 않음)
+        if (claimRefreshSlot()) {
+            runCatching { updateUpcomingMatches() }
+                .onFailure { log.error("❌ [FotMob] 향후 일정 동기화 실패: ${it.message}", it) }
+        }
+        return loadFreshUpcoming()
+    }
+
+    suspend fun syncUpdate(): String {
+        return try {
+            val result = matchScraperService.scrapeAndSaveLatestMatch()
+            val count = updateUpcomingMatches()
+
+            if (result != null) "✅ 동기화 완료 — 최근 경기: ${result.homeTeam} vs ${result.awayTeam} / 향후 일정 ${count}건"
+            else "✅ 향후 일정 ${count}건은 동기화되었으나, 최근 경기 데이터는 찾지 못했습니다."
+        } catch (e: Exception) {
+            "❌ 에러 발생: ${e.message}"
+        }
+    }
+
+    @Scheduled(cron = "0 0 7,19 * * *", zone = "Asia/Seoul")
+    fun scheduledUpdate() {
+        serviceScope.launch {
+            val startTime = System.currentTimeMillis()
+            try {
+                matchScraperService.scrapeAndSaveLatestMatch()
+                updateUpcomingMatches()
+                saveLog(CollectionStatus.SUCCESS, startTime, 0)
+            } catch (e: Exception) {
+                // 예전에는 예외가 갱신 함수 안에서 삼켜져 실패해도 SUCCESS로 기록됐다
+                log.error("❌ [FotMob] 예정 경기 갱신 실패: ${e.message}", e)
+                saveLog(CollectionStatus.FAIL, startTime, 0, e.message)
+            }
+        }
+    }
+
+    /** 아직 안 끝난 경기만, 킥오프 순으로 */
+    private fun loadFreshUpcoming(): List<UpcomingMatch> {
+        val cutoff = Instant.now().minus(KEEP_AFTER_KICKOFF)
+        return upcomingMatchRepository.findAllByOrderByMatchDateAsc()
+            .filter { parseKickoff(it.matchDate)?.isAfter(cutoff) == true }
+    }
+
+    /**
+     * FotMob에서 다가올 경기를 받아 upcoming_match 테이블을 통째로 교체한다.
+     *
+     * 스크랩이 실패하면 예외가 그대로 올라가고 기존 데이터는 손대지 않는다.
+     * 반대로 성공했다면 그 결과가 최신 상태이므로, 0건이어도(시즌 종료 등) 지난 경기는 지운다.
+     * — 예전 구현은 결과가 비면 아무것도 하지 않아 지난 경기가 영원히 남았다.
+     */
+    private suspend fun updateUpcomingMatches(): Int {
+        lastRefreshAttempt.set(Instant.now())
+        val fresh = matchScraperService.scrapeUpcomingMatches(UPCOMING_LIMIT)
+
+        withContext(Dispatchers.IO) {
+            transactionTemplate.executeWithoutResult {
+                upcomingMatchRepository.deleteAllInBatch()
+                upcomingMatchRepository.flush()
+                upcomingMatchRepository.saveAll(fresh)
+            }
+        }
+        log.info("✅ [FotMob] 향후 일정 ${fresh.size}건 갱신 완료")
+        return fresh.size
+    }
+
+    /** 쿨다운이 지났으면 갱신 권한을 가져간다. 동시 요청 중 하나만 true를 받는다. */
+    private fun claimRefreshSlot(): Boolean {
+        val now = Instant.now()
+        val last = lastRefreshAttempt.get()
+        return last.isBefore(now.minus(REFRESH_COOLDOWN)) && lastRefreshAttempt.compareAndSet(last, now)
+    }
+
+    private fun parseKickoff(raw: String): Instant? =
+        runCatching { java.time.OffsetDateTime.parse(raw).toInstant() }
+            .recoverCatching { Instant.parse(raw.replace(" ", "T")) }
+            .getOrNull()
+
+    private fun saveLog(status: CollectionStatus, startTime: Long, callCount: Int, errorMsg: String? = null) {
+        collectionLogRepository.save(CollectionLog(
+            status = status, 
+            footballApiCallCount = callCount,
+            errorMsg = errorMsg, 
+            executionTimeMs = System.currentTimeMillis() - startTime
+        ))
+    }
+}
