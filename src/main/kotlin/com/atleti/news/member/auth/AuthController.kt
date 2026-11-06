@@ -4,6 +4,8 @@ import com.atleti.news.common.NotFoundException
 import com.atleti.news.member.domain.Member
 import com.atleti.news.member.domain.MemberRepository
 import com.atleti.news.member.domain.MemberService
+import com.atleti.news.moderation.ModerationService
+import com.atleti.news.moderation.Suspension
 import java.net.URLEncoder
 import io.swagger.v3.oas.annotations.Operation
 import io.swagger.v3.oas.annotations.tags.Tag
@@ -27,9 +29,17 @@ data class MemberResponse(
     val provider: String,
     val favoriteTeam: String?, // "arsenal" … "other". 가입 마치기 전이면 null
     val signupCompleted: Boolean, // false면 프론트가 "가입 마치기" 화면으로 보낸다
+    val role: String = "MEMBER", // MEMBER | TEAM_ADMIN | ADMIN
+    val adminClub: String? = null, // TEAM_ADMIN이 맡은 팀
+    val suspendedUntil: OffsetDateTime? = null, // 정지 중이면 끝나는 시각
+    val suspensionReason: String? = null,
 ) {
     companion object {
-        fun of(m: Member) = MemberResponse(m.id!!, m.nickname, m.profileImageUrl, m.provider.name, m.favoriteTeam?.id, m.signupCompleted)
+        fun of(m: Member, suspension: Suspension? = null) = MemberResponse(
+            m.id!!, m.nickname, m.profileImageUrl, m.provider.name, m.favoriteTeam?.id, m.signupCompleted,
+            role = m.effectiveRole.name, adminClub = m.adminClub,
+            suspendedUntil = suspension?.endsAt, suspensionReason = suspension?.reason,
+        )
     }
 }
 
@@ -48,6 +58,7 @@ class AuthController(
     private val memberAuth: MemberAuth,
     private val memberRepository: MemberRepository,
     private val memberService: MemberService,
+    private val moderation: ModerationService,
 ) {
     private val log = LoggerFactory.getLogger(AuthController::class.java)
     private val random = SecureRandom()
@@ -111,7 +122,7 @@ class AuthController(
 
     @Operation(summary = "내 정보", description = "비로그인이면 401")
     @GetMapping("/me")
-    fun me(request: HttpServletRequest): MemberResponse = MemberResponse.of(memberAuth.require(request))
+    fun me(request: HttpServletRequest): MemberResponse = memberAuth.require(request).let { MemberResponse.of(it, moderation.activeSuspension(it)) }
 
     @Operation(summary = "로그아웃")
     @PostMapping("/logout")

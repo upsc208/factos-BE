@@ -18,6 +18,7 @@ data class ProfileRequest(val nickname: String?, val favoriteTeam: String?)
 class MemberController(
     private val memberAuth: MemberAuth,
     private val memberService: MemberService,
+    private val moderation: com.atleti.news.moderation.ModerationService,
 ) {
     @Operation(
         summary = "닉네임 중복 확인",
@@ -31,7 +32,7 @@ class MemberController(
     @PutMapping("/api/me/profile")
     fun updateProfile(@RequestBody body: ProfileRequest, request: HttpServletRequest): MemberResponse {
         val member = memberAuth.require(request) // 가입 마치기 전에도 부를 수 있어야 한다
-        return MemberResponse.of(memberService.updateProfile(member, body.nickname, body.favoriteTeam))
+        return memberService.updateProfile(member, body.nickname, body.favoriteTeam).let { MemberResponse.of(it, moderation.activeSuspension(it)) }
     }
 
     @Operation(summary = "회원 탈퇴", description = "회원 정보·즐겨찾기 삭제. 댓글은 '탈퇴한 회원'으로 남는다")

@@ -7,6 +7,7 @@ import com.atleti.news.common.InvalidRequestException
 import com.atleti.news.common.NotFoundException
 import com.atleti.news.member.auth.MemberAuth
 import com.atleti.news.member.domain.MemberRepository
+import com.atleti.news.moderation.ModerationService
 import com.atleti.news.news.domain.NewsArticleRepository
 import io.swagger.v3.oas.annotations.Operation
 import io.swagger.v3.oas.annotations.tags.Tag
@@ -30,6 +31,7 @@ data class CommentResponse(
     val createdAt: OffsetDateTime,
     val mine: Boolean, // 로그인한 본인 댓글이면 true — 프론트가 삭제 버튼을 띄운다
     val favoriteTeam: String? = null, // 작성자의 응원팀 ("arsenal" … "other"). 탈퇴했으면 null
+    val moderatable: Boolean = false, // 지금 보는 사람이 이 댓글을 지우고 작성자를 정지할 수 있는 관리자인지
 )
 
 @Tag(name = "Comment API", description = "기사 댓글")
@@ -40,6 +42,7 @@ class CommentController(
     private val newsArticleRepository: NewsArticleRepository,
     private val memberAuth: MemberAuth,
     private val slangFilter: SlangFilterService,
+    private val moderation: ModerationService,
 ) {
     @Operation(summary = "댓글 목록", description = "오래된 순. 비로그인도 볼 수 있다")
     @GetMapping("/api/news/{articleId}/comments")
@@ -49,7 +52,9 @@ class CommentController(
         @RequestParam(defaultValue = "50") size: Int,
         request: HttpServletRequest,
     ): Page<CommentResponse> {
-        val me = memberAuth.current(request)?.id
+        val viewer = memberAuth.current(request)
+        val me = viewer?.id
+        val moderatable = moderation.canModerateArticle(viewer, articleId)
         val comments = commentRepository.findAllByArticleId(
             articleId,
             PageRequest.of(page.coerceAtLeast(0), size.coerceIn(1, 100), Sort.by("createdAt").ascending()),
@@ -66,6 +71,7 @@ class CommentController(
                 createdAt = c.createdAt,
                 mine = c.memberId == me,
                 favoriteTeam = author?.favoriteTeam?.id,
+                moderatable = moderatable,
             )
         }
     }
@@ -74,6 +80,7 @@ class CommentController(
     @PostMapping("/api/news/{articleId}/comments")
     fun create(@PathVariable articleId: Long, @RequestBody body: CommentRequest, request: HttpServletRequest): ResponseEntity<CommentResponse> {
         val member = memberAuth.requireCompleted(request)
+        moderation.requireNotSuspended(member)
         if (!newsArticleRepository.existsById(articleId)) throw NotFoundException("해당 기사를 찾을 수 없습니다. ID: $articleId")
 
         val content = validate(body.content)
@@ -86,7 +93,7 @@ class CommentController(
 
         val saved = commentRepository.save(Comment(articleId = articleId, memberId = member.id!!, content = content))
         return ResponseEntity.status(HttpStatus.CREATED).body(
-            CommentResponse(saved.id!!, saved.content, member.nickname, member.profileImageUrl, saved.createdAt, mine = true, favoriteTeam = member.favoriteTeam?.id)
+            CommentResponse(saved.id!!, saved.content, member.nickname, member.profileImageUrl, saved.createdAt, mine = true, favoriteTeam = member.favoriteTeam?.id, moderatable = moderation.canModerateArticle(member, articleId))
         )
     }
 

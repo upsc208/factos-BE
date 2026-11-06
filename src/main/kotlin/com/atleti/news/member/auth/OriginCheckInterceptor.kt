@@ -33,6 +33,6 @@ class OriginCheckInterceptor(allowedOrigins: AllowedOrigins) : HandlerIntercepto
 
     companion object {
         private val SAFE_METHODS = setOf("GET", "HEAD", "OPTIONS")
-        val PATHS = listOf("/api/auth/logout", "/api/news/*/comments", "/api/comments/**", "/api/me/**")
+        val PATHS = listOf("/api/auth/logout", "/api/news/*/comments", "/api/comments/**", "/api/me/**", "/api/moderation/**")
     }
 }

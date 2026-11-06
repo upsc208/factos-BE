@@ -6,6 +6,14 @@ import java.time.OffsetDateTime
 
 enum class AuthProvider { KAKAO, GOOGLE }
 
+/**
+ * 회원 권한. 관리자는 따로 계정을 두지 않고 회원에게 권한을 붙인다.
+ * - [TEAM_ADMIN]: 자기 팀([Member.adminClub]) 기사에 달린 댓글만 지우고, 그 작성자를 정지할 수 있다
+ * - [ADMIN]: 모든 팀
+ * 권한은 운영자 API(`/api/admin/members`, 관리자 토큰·키)로만 바꾼다
+ */
+enum class MemberRole { MEMBER, TEAM_ADMIN, ADMIN }
+
 /** 응원하는 팀: Big6 + 기타. [id]는 프론트 라우트·API 값 ("arsenal" … "other") */
 enum class FavoriteTeam(val id: String) {
     ARSENAL("arsenal"), CHELSEA("chelsea"), LIVERPOOL("liverpool"),
@@ -64,7 +72,19 @@ class Member(
 
     @Column(name = "last_login_at", nullable = false)
     var lastLoginAt: OffsetDateTime = OffsetDateTime.now(),
+
+    // 운영 DB는 ddl-auto=update라 기존 행이 있다 → nullable. null이면 일반 회원
+    @Enumerated(EnumType.STRING)
+    @Column(name = "role", length = 20)
+    var role: MemberRole? = null,
+
+    // TEAM_ADMIN이 맡은 팀 (Club.id: "arsenal" …)
+    @Column(name = "admin_club", length = 20)
+    var adminClub: String? = null,
 ) {
+    val effectiveRole: MemberRole get() = role ?: MemberRole.MEMBER
+    val isModerator: Boolean get() = effectiveRole != MemberRole.MEMBER
+
     @Column(nullable = false, length = 40)
     var nickname: String = nickname
         set(value) {
@@ -85,4 +105,5 @@ interface MemberRepository : JpaRepository<Member, Long> {
     fun findByProviderAndProviderUserId(provider: AuthProvider, providerUserId: String): Member?
     fun existsByNicknameKey(nicknameKey: String): Boolean
     fun findByNicknameKey(nicknameKey: String): Member?
+    fun findAllByNicknameKeyContaining(part: String): List<Member>
 }
