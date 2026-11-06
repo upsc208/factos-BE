@@ -11,6 +11,10 @@ import com.atleti.news.chat.domain.ChatMessage
 import com.atleti.news.chat.domain.ChatException
 import com.atleti.news.chat.infra.ChatPresenceTracker
 import com.atleti.news.chat.domain.ChatService
+import com.atleti.news.chat.domain.ChatRoomDirectory
+import com.atleti.news.chat.domain.ChatRoomSummary
+import com.atleti.news.common.NotFoundException
+import com.atleti.news.news.domain.Club
 import io.swagger.v3.oas.annotations.Operation
 import io.swagger.v3.oas.annotations.tags.Tag
 import org.springframework.messaging.handler.annotation.DestinationVariable
@@ -29,7 +33,8 @@ import org.springframework.web.bind.annotation.*
 class ChatController(
     private val chatService: ChatService,
     private val presenceTracker: ChatPresenceTracker,
-    private val adminAuth: AdminAuthService
+    private val adminAuth: AdminAuthService,
+    private val chatRoomDirectory: ChatRoomDirectory,
 ) {
 
     // 검증(방 오픈·내용·도배) 후 Redis 저장과 발행
@@ -59,6 +64,18 @@ class ChatController(
             "error" to (e.message ?: "요청을 처리할 수 없습니다."),
             "code" to e.code
         )
+
+    @Operation(
+        summary = "팀별 채팅방 목록",
+        description = "팀 방(team-{club}, 항상 열림) + 그 팀의 다가올 경기 방(경기 ID). " +
+            "Big6끼리 붙는 경기는 양 팀 목록에 같은 roomId로 나와 한 방에서 만난다."
+    )
+    @GetMapping("/api/chat/rooms")
+    @ResponseBody
+    fun rooms(@RequestParam club: String): List<ChatRoomSummary> {
+        val target = Club.fromId(club) ?: throw NotFoundException("알 수 없는 팀입니다: $club")
+        return chatRoomDirectory.roomsFor(target)
+    }
 
     @Operation(summary = "방 정보 조회", description = "오픈 여부, 접속자 수, 최근 메시지 100개, 라이브 스냅샷을 함께 돌려줍니다.")
     @GetMapping("/api/chat/{matchId}")

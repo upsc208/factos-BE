@@ -1,5 +1,6 @@
 package com.atleti.news.chat
 
+import com.atleti.news.news.domain.Club
 import com.atleti.news.chat.infra.ChatClient
 import com.atleti.news.chat.domain.ChatService
 import com.fasterxml.jackson.core.type.TypeReference
@@ -67,7 +68,7 @@ class ChatRoomIntegrationTest {
     private val opened = mutableListOf<StompSession>()
 
     private companion object {
-        const val FREE = ChatService.FREE_ROOM_ID
+        val FREE = ChatService.teamRoomId(Club.ARSENAL)
         const val MATCH_ROOM = "9999001"      // 킥오프 정보가 없는 방 = 닫힌 방
         const val IP_A = "203.0.113.10"
         const val IP_B = "198.51.100.77"

@@ -13,6 +13,7 @@ import org.springframework.stereotype.Service
 import java.time.OffsetDateTime
 import com.atleti.news.live.domain.LiveMatchKeys
 import com.atleti.news.match.domain.MatchKickoff
+import com.atleti.news.news.domain.Club
 
 /**
  * 채팅 정책 위반 (닫힌 방, 도배, 금지된 내용 등) — 보낸 사람에게만 에러로 전달된다.
@@ -59,9 +60,19 @@ class ChatService(
         const val CHANNEL = "chat.messages"   // Pub/Sub 채널 (단일 채널, 페이로드에 matchId 포함)
 
         /**
-         * 상시 개방 자유 채팅방의 방 키.
+         * 상시 개방 팀 채팅방의 방 키 접두어: `team-arsenal`, `team-mancity` … (Big6 6개).
+         * 아틀레티 시절의 자유 채팅방 하나("free")를 팀별로 나눈 것이다.
+         *
+         * 경기 방은 FotMob 경기 ID(숫자) 그대로라 겹치지 않는다. Big6끼리 붙는 경기는 두 팀 일정에
+         * 같은 경기 ID로 들어오므로 **두 팀 팬이 같은 방**에 모인다 — 따로 연결할 필요가 없다.
          */
-        const val FREE_ROOM_ID = "free"
+        const val TEAM_ROOM_PREFIX = "team-"
+
+        fun teamRoomId(club: Club) = "$TEAM_ROOM_PREFIX${club.id}"
+
+        /** 팀 방이면 그 팀, 아니면 null (없는 팀 이름은 팀 방으로 치지 않는다) */
+        fun teamOf(roomId: String): Club? =
+            if (roomId.startsWith(TEAM_ROOM_PREFIX)) Club.fromId(roomId.removePrefix(TEAM_ROOM_PREFIX)) else null
 
         /**
          * 골 알림을 보내는 봇 이름 (live-match-feed-design 6.7-2).
@@ -82,7 +93,7 @@ class ChatService(
         private const val RATE_LIMIT_MAX = 10
         private val URL_PATTERN = Regex("(?i)(https?://|www\\.)")
 
-        fun isFreeRoom(matchId: String) = matchId == FREE_ROOM_ID
+        fun isTeamRoom(roomId: String) = teamOf(roomId) != null
     }
 
     fun send(matchId: String, nickname: String, content: String, ip: String, clientId: String? = null, admin: Boolean = false) {
@@ -164,7 +175,7 @@ class ChatService(
 
         val size = redis.opsForList().leftPush(key, json)
         redis.opsForList().trim(key, 0, MAX_RECENT - 1)
-        if (isFreeRoom(matchId)) {
+        if (isTeamRoom(matchId)) {
             if (size == 1L) redis.persist(key)
         } else {
             redis.expire(key, ChatKeys.ROOM_TTL)
@@ -176,7 +187,7 @@ class ChatService(
      * 입장 시 내려줄 라이브 스냅샷 (live-match-feed-design 6.2).
      */
     fun liveState(matchId: String): LiveMatchState? {
-        if (isFreeRoom(matchId)) return null
+        if (isTeamRoom(matchId)) return null
         return try {
             redis.opsForValue().get(LiveMatchKeys.state(matchId))
                 ?.let { objectMapper.readValue(it, LiveMatchState::class.java) }
@@ -212,7 +223,7 @@ class ChatService(
     // --- 방 오픈 판정---
 
     fun isOpen(matchId: String): Boolean {
-        if (isFreeRoom(matchId)) return true
+        if (isTeamRoom(matchId)) return true
         if (alwaysOpen) return true
         val kickoff = findKickoffTime(matchId) ?: return false
         val now = OffsetDateTime.now()
@@ -225,7 +236,7 @@ class ChatService(
 
     /** 킥오프 시각: 예정 경기 우선, 없으면 경기 결과에서. 둘 다 없으면 방 없음 취급 */
     private fun findKickoffTime(matchId: String): OffsetDateTime? {
-        val dateStr = upcomingMatchRepository.findByMatchId(matchId)?.matchDate
+        val dateStr = upcomingMatchRepository.findFirstByMatchId(matchId)?.matchDate
             ?: matchResultRepository.findByMatchId(matchId)?.matchDate
             ?: return null
         return MatchKickoff.parse(dateStr)
@@ -325,7 +336,7 @@ class ChatService(
         current != null && ip != ClientIp.UNKNOWN && (current == ip || current == "$IP_OWNER_PREFIX$ip")
 
     /**
-     * 닉네임 장부 수명 — 자유 채팅방도 경기 방과 같이 24h.
+     * 닉네임 장부 수명 — 팀 채팅방도 경기 방과 같이 24h.
      */
     private fun touchNicknameLedgers(nickKey: String, ipKey: String) {
         redis.expire(nickKey, ChatKeys.ROOM_TTL)

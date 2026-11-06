@@ -2,7 +2,12 @@ package com.atleti.news.news.api
 
 import com.atleti.news.common.ClientIp
 import com.atleti.news.common.NotFoundException
+import com.atleti.news.news.api.dto.ClubNewsResponse
 import com.atleti.news.news.api.dto.NewsDetailResponse
+import com.atleti.news.news.api.dto.ClubSourceResponse
+import com.atleti.news.news.domain.Club
+import com.atleti.news.news.domain.ClubJournalists
+import com.atleti.news.news.domain.ClubNewsPipeline
 import com.atleti.news.news.api.dto.NewsListResponse
 import com.atleti.news.news.api.dto.NewsSourceResponse
 import com.atleti.news.news.domain.NewsArticleRepository
@@ -67,6 +72,39 @@ class NewsController(
         }
     }
 
+    @Operation(
+        summary = "팀별 뉴스 목록 (Big6)",
+        description = "clubId는 arsenal, chelsea, liverpool, mancity, manutd, tottenham 중 하나. 최신순. " +
+            "번역 전 기사(translationStatus=PENDING)는 titleKo가 null이고 keySentences가 영어 원문이다."
+    )
+    @GetMapping("/clubs/{clubId}")
+    fun getClubNews(
+        @PathVariable clubId: String,
+        @RequestParam(defaultValue = "0") page: Int,
+        @RequestParam(defaultValue = "20") size: Int,
+        @RequestParam(required = false) sources: List<String>?,
+        @RequestParam(required = false) search: String?,
+    ): Page<ClubNewsResponse> {
+        val club = Club.fromId(clubId) ?: throw NotFoundException("알 수 없는 팀입니다: $clubId")
+        val pageable = PageRequest.of(page.coerceAtLeast(0), size.coerceIn(1, MAX_PAGE_SIZE), Sort.by("publishedAt").descending())
+        return newsArticleRepository.findAllByClub(
+            club,
+            sources?.map { it.trim().lowercase() }?.filter { it.isNotEmpty() }?.ifEmpty { null },
+            search?.trim()?.ifEmpty { null },
+            pageable,
+        ).map { ClubNewsResponse.of(it) }
+    }
+
+    @Operation(
+        summary = "팀별 출처 목록 (Big6)",
+        description = "출처 필터에 쓰는 목록. internalId를 /clubs/{clubId}?sources= 에 그대로 넘긴다 (대소문자 무관)."
+    )
+    @GetMapping("/clubs/{clubId}/sources")
+    fun getClubSources(@PathVariable clubId: String): List<ClubSourceResponse> {
+        val club = Club.fromId(clubId) ?: throw NotFoundException("알 수 없는 팀입니다: $clubId")
+        return ClubSourceResponse.MEDIA + ClubJournalists.handlesFor(club).map(ClubSourceResponse::journalist)
+    }
+
     @Operation(summary = "수집 소스 목록 조회", description = "시스템에서 관리 중인 모든 뉴스 수집원 리스트를 가져옵니다.")
     @GetMapping("/sources")
     fun getSources(): List<NewsSourceResponse> {
@@ -84,7 +122,7 @@ class NewsController(
 
         return NewsDetailResponse(
             id = article.id!!,
-            titleKo = article.titleKo ?: "제목 없음",
+            titleKo = article.titleKo ?: article.titleEn ?: "제목 없음", // Big6 기사는 번역 전이면 영어 제목
             summaryKo = article.summaryKo ?: "", 
             contentKo = article.contentKo ?: "본문 내용이 없습니다.",
             imageUrl = article.imageUrl,
@@ -94,7 +132,10 @@ class NewsController(
             publishedAt = article.publishedAt,
             articleType = article.articleType,
             category = article.category ?: "[기타]",
-            viewCount = viewCount
+            viewCount = viewCount,
+            titleEn = article.titleEn,
+            keySentencesEn = article.keySentencesEn?.let { ClubNewsPipeline.splitSentences(it) },
+            translationStatus = article.translationStatus,
         )
     }
 

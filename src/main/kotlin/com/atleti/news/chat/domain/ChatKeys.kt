@@ -10,14 +10,14 @@ import java.time.Duration
  * 쓰는 쪽과 읽는 쪽이 한 글자만 달라도 아무 에러 없이 그냥 빈 값이 나온다.
  * 접두사를 바꿀 때 놓치는 곳이 생기지 않도록 한곳에서만 만든다.
  *
- * `{matchId}`는 경기 방이면 FotMob 숫자 ID, 자유 채팅방이면 [ChatService.FREE_ROOM_ID]다.
+ * `{matchId}`는 경기 방이면 FotMob 숫자 ID, 팀 채팅방이면 `team-{clubId}` ([ChatService.teamRoomId])다.
  */
 object ChatKeys {
 
     /**
      * 최근 메시지 리스트 (`LPUSH` + `LTRIM`으로 100건 유지).
      *
-     * **자유 채팅방만 TTL이 없다.** 하루 조용했다고 대화가 통째로 사라지면 "항상 열려 있는 방"이
+     * **팀 채팅방만 TTL이 없다.** 하루 조용했다고 대화가 통째로 사라지면 "항상 열려 있는 방"이
      * 고장난 것처럼 보인다. 크기는 `LTRIM`이 고정하므로 TTL이 없어도 늘어나지 않는다
      * ([ChatService.store] 참고).
      */

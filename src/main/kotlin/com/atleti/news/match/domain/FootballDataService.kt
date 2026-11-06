@@ -11,7 +11,9 @@ import org.springframework.transaction.support.TransactionTemplate
 import java.time.Duration
 import java.time.Instant
 import java.util.concurrent.atomic.AtomicReference
+import com.atleti.news.match.external.FotMobScrapeException
 import com.atleti.news.match.external.MatchScraperService
+import com.atleti.news.news.domain.Club
 
 @Service
 class FootballDataService(
@@ -26,6 +28,7 @@ class FootballDataService(
     private val serviceScope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
 
     private val UPCOMING_LIMIT = 3
+    private val TEAM_SCRAPE_GAP_MS = 3_000L
 
     /** 킥오프 후 이 시간까지는 "다가올 경기"로 계속 노출한다 (채팅방 오픈 구간과 동일, redis-design 6.6) */
     private val KEEP_AFTER_KICKOFF = Duration.ofHours(3)
@@ -93,17 +96,51 @@ class FootballDataService(
      */
     private suspend fun updateUpcomingMatches(): Int {
         lastRefreshAttempt.set(Instant.now())
-        val fresh = matchScraperService.scrapeUpcomingMatches(UPCOMING_LIMIT)
+        var total = 0
+        val failed = mutableListOf<String>()
 
-        withContext(Dispatchers.IO) {
-            transactionTemplate.executeWithoutResult {
-                upcomingMatchRepository.deleteAllInBatch()
-                upcomingMatchRepository.flush()
-                upcomingMatchRepository.saveAll(fresh)
+        // Big6 팀 페이지를 하나씩. 팀마다 따로 교체하므로 한 팀 스크랩이 실패해도 다른 팀 일정은 그대로 산다
+        Club.entries.forEachIndexed { index, club ->
+            if (index > 0) delay(TEAM_SCRAPE_GAP_MS) // FotMob을 연달아 두드리지 않는다
+            val fresh = try {
+                matchScraperService.scrapeUpcomingMatches(club, UPCOMING_LIMIT)
+            } catch (e: Exception) {
+                log.warn("⚠️ [FotMob] {} 일정 갱신 실패 (기존 일정 유지): {}", club.id, e.message)
+                failed += club.id
+                return@forEachIndexed
+            }
+            withContext(Dispatchers.IO) {
+                transactionTemplate.executeWithoutResult {
+                    upcomingMatchRepository.deleteAllByClub(club.id)
+                    upcomingMatchRepository.saveAll(fresh)
+                }
+            }
+            total += fresh.size
+        }
+
+        if (failed.size == Club.entries.size) throw FotMobScrapeException("Big6 일정을 하나도 받지 못했습니다")
+        // 아틀레티 시절 행은 이제 쓸 일이 없다
+        withContext(Dispatchers.IO) { transactionTemplate.executeWithoutResult { upcomingMatchRepository.deleteAllWithoutClub() } }
+
+        log.info("✅ [FotMob] Big6 향후 일정 {}건 갱신 완료{}", total, if (failed.isEmpty()) "" else " (실패: $failed)")
+        return total
+    }
+
+    /** 한 팀의 다가올 경기 (채팅 매치 방 목록용) */
+    fun getUpcomingMatches(club: Club): List<UpcomingMatch> {
+        val cutoff = Instant.now().minus(KEEP_AFTER_KICKOFF)
+        val fresh = upcomingMatchRepository.findAllByClubOrderByMatchDateAsc(club.id)
+            .filter { parseKickoff(it.matchDate)?.isAfter(cutoff) == true }
+
+        // 비어 있으면(배포 직후, 정기 갱신 07:00/19:00 전) 뒤에서 갱신을 건다.
+        // 6팀을 도는 데 20초 남짓 걸려서 요청을 붙잡지 않는다 — 이번 응답은 빈 목록, 다음 요청부터 채워진다
+        if (fresh.isEmpty() && claimRefreshSlot()) {
+            serviceScope.launch {
+                runCatching { updateUpcomingMatches() }
+                    .onFailure { log.error("❌ [FotMob] 향후 일정 동기화 실패: ${it.message}", it) }
             }
         }
-        log.info("✅ [FotMob] 향후 일정 ${fresh.size}건 갱신 완료")
-        return fresh.size
+        return fresh
     }
 
     /** 쿨다운이 지났으면 갱신 권한을 가져간다. 동시 요청 중 하나만 true를 받는다. */

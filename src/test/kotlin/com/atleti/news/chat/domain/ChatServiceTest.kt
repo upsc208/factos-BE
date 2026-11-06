@@ -1,6 +1,7 @@
 package com.atleti.news.chat.domain
 
 import com.atleti.news.live.domain.LiveMatchState
+import com.atleti.news.news.domain.Club
 import com.atleti.news.live.domain.LiveScorer
 import com.atleti.news.match.domain.MatchResultRepository
 import com.atleti.news.match.domain.UpcomingMatchRepository
@@ -85,13 +86,13 @@ class ChatServiceTest {
     fun testFreeRoomAlwaysOpen() {
         val strict = strictChatService()
 
-        assertEquals(true, strict.isOpen(ChatService.FREE_ROOM_ID))
+        assertEquals(true, strict.isOpen(ChatService.teamRoomId(Club.ARSENAL)))
         // 자유방은 킥오프를 따질 필요가 없으므로 DB를 건드리지 않는다
         verifyNoInteractions(upcomingMatchRepository)
 
         // 킥오프 정보가 없는 일반 방은 닫혀 있어야 한다 — 자유방만 예외라는 뜻
         assertEquals(false, strict.isOpen("5868012"))
-        verify(upcomingMatchRepository, times(1)).findByMatchId("5868012")
+        verify(upcomingMatchRepository, times(1)).findFirstByMatchId("5868012")
     }
 
     @Test
@@ -102,9 +103,9 @@ class ChatServiceTest {
         `when`(hashOps.putIfAbsent(anyString(), anyString(), anyString())).thenReturn(true)
         `when`(listOps.leftPush(anyString(), anyString())).thenReturn(1L)
 
-        chatService.send(ChatService.FREE_ROOM_ID, "코케", "다들 안녕", "127.0.0.1")
+        chatService.send(ChatService.teamRoomId(Club.ARSENAL), "코케", "다들 안녕", "127.0.0.1")
 
-        val key = "chat:msg:${ChatService.FREE_ROOM_ID}"
+        val key = "chat:msg:${ChatService.teamRoomId(Club.ARSENAL)}"
         verify(listOps, times(1)).trim(eq(key), eq(0L), eq(99L))   // 상한 100건은 유지
         verify(redis, never()).expire(eq(key), any())              // 메시지 키에는 TTL 없음
         verify(redis, times(1)).persist(eq(key))                   // 남아 있던 TTL 제거
@@ -133,9 +134,9 @@ class ChatServiceTest {
         `when`(listOps.leftPush(anyString(), anyString())).thenReturn(1L)
 
         // 한때 자유방만 30일이었는데, 한 번 써본 이름이 한 달간 잠기는 문제가 있었다
-        chatService.send(ChatService.FREE_ROOM_ID, "코케", "안녕", "10.0.0.1")
-        verify(redis, times(1)).expire(eq("chat:nick:free"), eq(java.time.Duration.ofHours(24)))
-        verify(redis, times(1)).expire(eq("chat:ipnick:free"), eq(java.time.Duration.ofHours(24)))
+        chatService.send(ChatService.teamRoomId(Club.ARSENAL), "코케", "안녕", "10.0.0.1")
+        verify(redis, times(1)).expire(eq("chat:nick:team-arsenal"), eq(java.time.Duration.ofHours(24)))
+        verify(redis, times(1)).expire(eq("chat:ipnick:team-arsenal"), eq(java.time.Duration.ofHours(24)))
 
         chatService.send("5868012", "코케", "안녕", "10.0.0.1")
         verify(redis, times(1)).expire(eq("chat:nick:5868012"), eq(java.time.Duration.ofHours(24)))
@@ -147,15 +148,15 @@ class ChatServiceTest {
         `when`(valOps.increment(anyString())).thenReturn(1L)
         `when`(listOps.leftPush(anyString(), anyString())).thenReturn(1L)
         // 이 IP는 이미 "코케"로 장부에 올라 있는 상태
-        `when`(hashOps.get(eq("chat:ipnick:free"), eq("10.0.0.1"))).thenReturn("코케")
+        `when`(hashOps.get(eq("chat:ipnick:team-arsenal"), eq("10.0.0.1"))).thenReturn("코케")
         `when`(hashOps.putIfAbsent(anyString(), anyString(), anyString())).thenReturn(true)
 
         // 같은 IP의 다른 사람이 다른 닉네임으로 보내도 거절되면 안 된다.
         // 예전에는 "이 방에서는 '코케'로 이미 참여 중이에요"로 막혀,
         // 같은 공유기를 쓰는 사람 전부가 들어오지 못했다.
-        chatService.send(ChatService.FREE_ROOM_ID, "그리즈만", "저도 왔어요", "10.0.0.1")
+        chatService.send(ChatService.teamRoomId(Club.ARSENAL), "그리즈만", "저도 왔어요", "10.0.0.1")
 
-        verify(listOps, times(1)).leftPush(eq("chat:msg:free"), contains("그리즈만"))
+        verify(listOps, times(1)).leftPush(eq("chat:msg:team-arsenal"), contains("그리즈만"))
     }
 
     @Test
@@ -353,8 +354,8 @@ class ChatServiceTest {
         assertEquals(1, live?.awayScore)
 
         // 자유 채팅방은 경기가 없으므로 Redis를 건드리지도 않는다
-        assertNull(chatService.liveState(ChatService.FREE_ROOM_ID))
-        verify(valOps, never()).get("live:state:free")
+        assertNull(chatService.liveState(ChatService.teamRoomId(Club.ARSENAL)))
+        verify(valOps, never()).get("live:state:team-arsenal")
     }
 
     @Test

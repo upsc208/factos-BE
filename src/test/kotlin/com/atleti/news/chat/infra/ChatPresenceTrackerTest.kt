@@ -35,11 +35,11 @@ class ChatPresenceTrackerTest {
     @DisplayName("접속자 수가 바뀌면 방에 있는 사람들에게 즉시 방송된다")
     fun testPresenceIsBroadcastOnChange() {
         val headers = mapOf(
-            SimpMessageHeaderAccessor.DESTINATION_HEADER to "/topic/chat/free",
+            SimpMessageHeaderAccessor.DESTINATION_HEADER to "/topic/chat/team-arsenal",
             SimpMessageHeaderAccessor.SESSION_ID_HEADER to "sess-1",
             SimpMessageHeaderAccessor.SUBSCRIPTION_ID_HEADER to "sub-1"
         )
-        `when`(valOps.increment("chat:online:free", 1L)).thenReturn(2L)
+        `when`(valOps.increment("chat:online:team-arsenal", 1L)).thenReturn(2L)
 
         tracker.onSubscribe(SessionSubscribeEvent(this, GenericMessage(ByteArray(0), MessageHeaders(headers))))
 
@@ -47,7 +47,7 @@ class ChatPresenceTrackerTest {
         val payload = ArgumentCaptor.forClass(String::class.java)
         verify(redis, times(1)).convertAndSend(eq("chat.presence"), payload.capture())
         val event = ObjectMapper().readValue(payload.value, PresenceEvent::class.java)
-        assertEquals("free", event.matchId)
+        assertEquals("team-arsenal", event.matchId)
         assertEquals(2L, event.onlineCount)
     }
 
@@ -55,7 +55,7 @@ class ChatPresenceTrackerTest {
     @DisplayName("presence 구독(/topic/presence/...)은 접속자로 세지 않는다")
     fun testPresenceSubscriptionIsNotCounted() {
         val headers = mapOf(
-            SimpMessageHeaderAccessor.DESTINATION_HEADER to "/topic/presence/free",
+            SimpMessageHeaderAccessor.DESTINATION_HEADER to "/topic/presence/team-arsenal",
             SimpMessageHeaderAccessor.SESSION_ID_HEADER to "sess-1",
             SimpMessageHeaderAccessor.SUBSCRIPTION_ID_HEADER to "sub-9"
         )

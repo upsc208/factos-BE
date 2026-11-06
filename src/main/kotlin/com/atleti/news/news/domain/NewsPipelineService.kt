@@ -33,7 +33,9 @@ class NewsPipelineService(
     @org.springframework.beans.factory.annotation.Value("\${atleti.news.enabled.gemini}") private val isGeminiEnabled: Boolean,
     @org.springframework.beans.factory.annotation.Value("\${atleti.news.enabled.youtube}") private val isYoutubeEnabled: Boolean,
     @org.springframework.beans.factory.annotation.Value("\${atleti.news.enabled.headline}") private val isHeadlineEnabled: Boolean,
-    @org.springframework.beans.factory.annotation.Value("\${rapidapi.daily.limit}") private val twitterDailyLimit: Int
+    @org.springframework.beans.factory.annotation.Value("\${rapidapi.daily.limit}") private val twitterDailyLimit: Int,
+    // factos 전환 후 기본 false. Big6 수집은 ClubNewsPipeline이 한다
+    @org.springframework.beans.factory.annotation.Value("\${atleti.news.enabled.legacy}") private val isLegacyEnabled: Boolean,
     ) {
     private val log = LoggerFactory.getLogger(NewsPipelineService::class.java)
 
@@ -45,6 +47,7 @@ class NewsPipelineService(
     // 고정 15분 간격 스케줄러 (24시간 내내)
     @Scheduled(cron = "0 0/15 * * * *")
     fun scheduledPipeline() {
+        if (!isLegacyEnabled) return
         if (!running.compareAndSet(false, true)) {
             log.info("⏭️ 수집이 이미 돌고 있어 이번 정시는 건너뜁니다")
             return
@@ -59,7 +62,7 @@ class NewsPipelineService(
     // 유튜브는 1시간에 한 번 정도만 체크
     @Scheduled(cron = "0 5 * * * *")
     fun scheduledYoutubePipeline() = runBlocking {
-        if (!isYoutubeEnabled) return@runBlocking
+        if (!isLegacyEnabled || !isYoutubeEnabled) return@runBlocking
         log.info("📺 유튜브 파이프라인 시작...")
         youtubeService.runYoutubePipeline("@rubenuriagonzalez")
     }
@@ -67,7 +70,7 @@ class NewsPipelineService(
     // 헤드라인 브리핑: 6시간마다 최신 뉴스를 종합해 헤드라인 1~2개 생성 (최신 5개 롤링 유지)
     @Scheduled(cron = "0 30 0/6 * * *")
     fun scheduledHeadlinePipeline() = runBlocking {
-        if (!isHeadlineEnabled) return@runBlocking
+        if (!isLegacyEnabled || !isHeadlineEnabled) return@runBlocking
         log.info("📰 헤드라인 파이프라인 시작...")
         headlineService.generateAndStore()
     }

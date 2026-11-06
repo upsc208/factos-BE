@@ -53,6 +53,28 @@ class MatchScraperParsingTest {
     }
 
     @Test
+    @DisplayName("Big6 팀 일정이면 그 팀 ID로 홈/원정을 가르고 팀을 기록한다")
+    fun testBig6FixtureKeepsClubAndHomeSide() {
+        val node = json(
+            """
+            {
+              "id": "4813999", "home": { "id": "9825", "name": "Arsenal" },
+              "away": { "id": "8455", "name": "Chelsea" },
+              "opponent": { "name": "Chelsea" }, "tournament": { "name": "Premier League" }
+            }
+            """
+        )
+        val arsenalSide = toUpcomingEntity(node, Instant.parse("2026-11-08T17:30:00Z"), "9825", "arsenal")
+        val chelseaSide = toUpcomingEntity(node, Instant.parse("2026-11-08T17:30:00Z"), "8455", "chelsea")
+
+        assertEquals("arsenal", arsenalSide.club)
+        assertTrue(arsenalSide.isHome)
+        assertEquals(false, chelseaSide.isHome)
+        // 두 팀 일정에 같은 경기 ID — 채팅 매치 방이 하나로 합쳐지는 근거
+        assertEquals(arsenalSide.matchId, chelseaSide.matchId)
+    }
+
+    @Test
     @DisplayName("아틀레티가 홈이면 isHome이 참이다")
     fun testIsHomeWhenAtletiIsHome() {
         val node = json(

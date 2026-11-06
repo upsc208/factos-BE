@@ -839,6 +839,8 @@ class LiveMatchPoller(
                     ActiveMatch(matchId, kickoff)
                 }
                 .filter { !at.isBefore(it.kickoff.minus(ROOM_OPENS_BEFORE)) && !at.isAfter(it.kickoff.plus(ROOM_CLOSES_AFTER)) }
+                // Big6 맞대결은 두 팀 일정에 같은 경기가 한 번씩 있다 — 한 번만 폴링한다
+                .distinctBy { it.matchId }
         }.getOrElse {
             log.warn("⚠️ [Live] 예정 경기 조회 실패: {}", it.message)
             emptyList()

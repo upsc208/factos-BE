@@ -6,6 +6,7 @@ import org.springframework.web.servlet.config.annotation.CorsRegistry
 import org.springframework.web.servlet.config.annotation.WebMvcConfigurer
 import com.atleti.news.admin.AdminAuthInterceptor
 import org.springframework.web.servlet.config.annotation.InterceptorRegistry
+import com.atleti.news.member.auth.OriginCheckInterceptor
 
 /**
  * REST 요청의 CORS
@@ -14,6 +15,7 @@ import org.springframework.web.servlet.config.annotation.InterceptorRegistry
 class WebConfig(
     private val allowedOrigins: AllowedOrigins,
     private val adminAuthInterceptor: AdminAuthInterceptor,
+    private val originCheckInterceptor: OriginCheckInterceptor,
 ) : WebMvcConfigurer {
 
     override fun addCorsMappings(registry: CorsRegistry) {
@@ -31,6 +33,9 @@ class WebConfig(
         registry.addInterceptor(adminAuthInterceptor)
             .addPathPatterns(AdminAuthInterceptor.PATH)
             .excludePathPatterns(AdminAuthInterceptor.LOGIN_PATH)
+        // 회원 쿠키로 동작하는 쓰기 요청은 허용 출처에서 온 것만
+        registry.addInterceptor(originCheckInterceptor)
+            .addPathPatterns(OriginCheckInterceptor.PATHS)
     }
 }
 

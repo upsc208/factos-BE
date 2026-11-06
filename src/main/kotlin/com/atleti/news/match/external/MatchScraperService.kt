@@ -3,6 +3,7 @@ package com.atleti.news.match.external
 import org.slf4j.LoggerFactory
 import com.atleti.news.match.domain.MatchResult
 import com.atleti.news.match.domain.UpcomingMatch
+import com.atleti.news.news.domain.Club
 import com.atleti.news.match.domain.MatchResultRepository
 import com.fasterxml.jackson.databind.JsonNode
 import com.fasterxml.jackson.databind.ObjectMapper
@@ -31,11 +32,11 @@ class MatchScraperService(
 ) {
     private val log = LoggerFactory.getLogger(MatchScraperService::class.java)
 
-    private val FOTMOB_URL = "$fotmobBaseUrl/teams/$ATLETI_TEAM_ID/overview/atletico-madrid"
+    private fun teamUrl(teamId: String, slug: String) = "$fotmobBaseUrl/teams/$teamId/overview/$slug"
 
     suspend fun scrapeAndSaveLatestMatch(): MatchResult? = withContext(Dispatchers.IO) {
         try {
-            val lastMatchNode = fetchOverviewNode().at("/lastMatch")
+            val lastMatchNode = fetchOverviewNode(ATLETI_TEAM_ID, "atletico-madrid").at("/lastMatch")
             if (!lastMatchNode.isMissingNode) {
                 return@withContext saveLastMatch(lastMatchNode)
             }
@@ -54,24 +55,24 @@ class MatchScraperService(
      *
      * @throws FotMobScrapeException 페이지 접속·파싱에 실패한 경우
      */
-    suspend fun scrapeUpcomingMatches(limit: Int = 3): List<UpcomingMatch> = withContext(Dispatchers.IO) {
-        val fixtures = fetchOverviewNode().at("/overviewFixtures")
+    suspend fun scrapeUpcomingMatches(club: Club, limit: Int = 3): List<UpcomingMatch> = withContext(Dispatchers.IO) {
+        val fixtures = fetchOverviewNode(club.fotmobTeamId, club.bbcSlug).at("/overviewFixtures")
         if (!fixtures.isArray) throw FotMobScrapeException("overviewFixtures 노드를 찾지 못했습니다")
 
-        selectUpcoming(fixtures, Instant.now(), limit)
+        selectUpcoming(fixtures, Instant.now(), limit, club.fotmobTeamId, club.id)
     }
 
     /**
      * 팀 페이지의 __NEXT_DATA__에서 overview 노드를 찾는다.
      * 최근 경기(lastMatch)와 전체 일정(overviewFixtures)이 모두 이 노드 아래에 있다.
      */
-    private suspend fun fetchOverviewNode(): JsonNode {
+    private suspend fun fetchOverviewNode(teamId: String, slug: String): JsonNode {
         var lastError: Exception? = null
 
         // FotMob이 간헐적으로 403/타임아웃을 내므로 1회 재시도한다
         for (retry in 1..2) {
             try {
-                val response = Jsoup.connect(FOTMOB_URL)
+                val response = Jsoup.connect(teamUrl(teamId, slug))
                     .userAgent(USER_AGENT)
                     .header("Accept", "text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,*/*;q=0.8")
                     .header("Accept-Language", "en-US,en;q=0.9,ko;q=0.8")
@@ -93,7 +94,7 @@ class MatchScraperService(
                     ?: throw FotMobScrapeException("__NEXT_DATA__ 스크립트를 찾지 못했습니다")
                 val pageProps = objectMapper.readTree(jsonData).at("/props/pageProps")
 
-                var overviewNode = pageProps.at("/fallback/team-$ATLETI_TEAM_ID/overview")
+                var overviewNode = pageProps.at("/fallback/team-$teamId/overview")
                 if (overviewNode.isMissingNode) {
                     val fallback = pageProps.at("/fallback")
                     val dataKey = fallback.fieldNames().asSequence().find { it.contains("api/team") }
@@ -171,7 +172,10 @@ class MatchScraperService(
          * 끝났거나 취소된 경기, [now]보다 과거인 경기를 버린다. 킥오프를 못 읽은 경기도 버린다 —
          * `ChatService`가 방 오픈 시각을 계산할 수 없어 어차피 쓸모없다.
          */
-        internal fun selectUpcoming(fixtures: JsonNode, now: Instant, limit: Int): List<UpcomingMatch> =
+        internal fun selectUpcoming(
+            fixtures: JsonNode, now: Instant, limit: Int,
+            teamId: String = ATLETI_TEAM_ID, club: String? = null,
+        ): List<UpcomingMatch> =
             fixtures.asSequence()
                 .filter { !it.at("/status/finished").asBoolean() && !it.at("/status/cancelled").asBoolean() }
                 .mapNotNull { node ->
@@ -180,17 +184,18 @@ class MatchScraperService(
                 }
                 .sortedBy { (_, kickoff) -> kickoff }
                 .take(limit)
-                .map { (node, kickoff) -> toUpcomingEntity(node, kickoff) }
+                .map { (node, kickoff) -> toUpcomingEntity(node, kickoff, teamId, club) }
                 .toList()
 
-        internal fun toUpcomingEntity(node: JsonNode, kickoff: Instant): UpcomingMatch {
+        internal fun toUpcomingEntity(node: JsonNode, kickoff: Instant, teamId: String = ATLETI_TEAM_ID, club: String? = null): UpcomingMatch {
             // 홈/원정은 팀 이름이 아니라 FotMob 팀 ID로 판별한다.
             // 상대에 Real Madrid·Rayo Vallecano처럼 madrid가 들어가는 팀이 있어 문자열 비교는 뒤집힌다.
-            val isHome = node.at("/home/id").asText() == ATLETI_TEAM_ID
+            val isHome = node.at("/home/id").asText() == teamId
             val opponent = node.at("/opponent/name").asText()
                 .ifBlank { if (isHome) node.at("/away/name").asText() else node.at("/home/name").asText() }
 
             return UpcomingMatch(
+                club = club,
                 matchId = node.at("/id").asText().takeIf { it.isNotBlank() },
                 opponent = opponent,
                 // ChatService.findKickoffTime이 파싱하는 형식과 맞춰야 한다 (ISO_OFFSET_DATE_TIME / KST)

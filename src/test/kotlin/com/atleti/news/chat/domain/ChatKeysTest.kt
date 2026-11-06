@@ -1,5 +1,6 @@
 package com.atleti.news.chat.domain
 
+import com.atleti.news.news.domain.Club
 import org.junit.jupiter.api.DisplayName
 import org.junit.jupiter.api.Test
 import java.time.Duration
@@ -35,9 +36,9 @@ class ChatKeysTest {
     @Test
     @DisplayName("자유 채팅방도 같은 규칙을 탄다")
     fun testFreeRoomKeyFormats() {
-        // 자유 채팅방은 matchId 자리에 "free"가 들어갈 뿐 키 모양은 같다
-        assertEquals("chat:msg:free", ChatKeys.messages(ChatService.FREE_ROOM_ID))
-        assertEquals("chat:online:free", ChatKeys.online(ChatService.FREE_ROOM_ID))
+        // 팀 채팅방은 matchId 자리에 "team-arsenal"이 들어갈 뿐 키 모양은 같다
+        assertEquals("chat:msg:team-arsenal", ChatKeys.messages(ChatService.teamRoomId(Club.ARSENAL)))
+        assertEquals("chat:online:team-arsenal", ChatKeys.online(ChatService.teamRoomId(Club.ARSENAL)))
     }
 
     @Test

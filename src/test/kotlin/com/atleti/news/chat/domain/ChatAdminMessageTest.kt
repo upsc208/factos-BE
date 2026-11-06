@@ -1,5 +1,6 @@
 package com.atleti.news.chat.domain
 
+import com.atleti.news.news.domain.Club
 import com.atleti.news.match.domain.MatchResultRepository
 import com.atleti.news.match.domain.UpcomingMatchRepository
 import com.fasterxml.jackson.databind.ObjectMapper
@@ -64,21 +65,21 @@ class ChatAdminMessageTest {
 
     @Test
     fun `관리자 메시지는 ADMIN 종류로 나간다`() {
-        chatService.send(ChatService.FREE_ROOM_ID, "운영자", "쿠폰 곧 올라간다", "127.0.0.1", admin = true)
+        chatService.send(ChatService.teamRoomId(Club.ARSENAL), "운영자", "쿠폰 곧 올라간다", "127.0.0.1", admin = true)
 
         assertThat(published().type).isEqualTo(ChatMessageType.ADMIN)
     }
 
     @Test
     fun `일반 메시지는 USER 종류 그대로다`() {
-        chatService.send(ChatService.FREE_ROOM_ID, "코케", "가자", "127.0.0.1")
+        chatService.send(ChatService.teamRoomId(Club.ARSENAL), "코케", "가자", "127.0.0.1")
 
         assertThat(published().type).isEqualTo(ChatMessageType.USER)
     }
 
     @Test
     fun `전광판 문구는 저장하지 않고 발행만 한다`() {
-        chatService.sendLedMessage(ChatService.FREE_ROOM_ID, "커피 쿠폰 ABCD1234", "127.0.0.1")
+        chatService.sendLedMessage(ChatService.teamRoomId(Club.ARSENAL), "커피 쿠폰 ABCD1234", "127.0.0.1")
 
         val message = published()
         assertThat(message.type).isEqualTo(ChatMessageType.LED)
@@ -89,16 +90,16 @@ class ChatAdminMessageTest {
 
     @Test
     fun `전광판 문구가 비었거나 너무 길면 거절한다`() {
-        assertThatThrownBy { chatService.sendLedMessage(ChatService.FREE_ROOM_ID, "   ", "127.0.0.1") }
+        assertThatThrownBy { chatService.sendLedMessage(ChatService.teamRoomId(Club.ARSENAL), "   ", "127.0.0.1") }
             .isInstanceOf(ChatException::class.java)
         assertThatThrownBy {
-            chatService.sendLedMessage(ChatService.FREE_ROOM_ID, "가".repeat(ChatService.MAX_LED_LENGTH + 1), "127.0.0.1")
+            chatService.sendLedMessage(ChatService.teamRoomId(Club.ARSENAL), "가".repeat(ChatService.MAX_LED_LENGTH + 1), "127.0.0.1")
         }.isInstanceOf(ChatException::class.java)
     }
 
     @Test
     fun `관리자는 도배 제한을 받지 않는다`() {
-        chatService.send(ChatService.FREE_ROOM_ID, "운영자", "안내 1", "127.0.0.1", admin = true)
+        chatService.send(ChatService.teamRoomId(Club.ARSENAL), "운영자", "안내 1", "127.0.0.1", admin = true)
 
         // 제한 카운터를 아예 건드리지 않는다
         verify(valOps, never()).increment("chat:rate:127.0.0.1")
