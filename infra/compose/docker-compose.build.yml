@@ -1,0 +1,18 @@
+# 로컬에서 세 저장소 소스로 이미지를 직접 빌드할 때만 겹쳐 쓴다.
+#   docker compose -f docker-compose.yml -f docker-compose.build.yml up -d --build
+# 세 저장소가 같은 폴더에 나란히 있다고 본다 (factos-BE / factos-FE / factos-CRAWLER).
+# 운영 서버는 이 파일을 쓰지 않는다 (CI가 만든 이미지를 받는다).
+
+services:
+  web:
+    build:
+      context: ../../../factos-FE
+      args:
+        NEXT_PUBLIC_API_URL: ""            # 같은 출처 /api (nginx가 backend로 넘긴다)
+        NEXT_PUBLIC_SITE_URL: ${SITE_URL}
+
+  backend:
+    build: ../..
+
+  crawler:
+    build: ../../../factos-CRAWLER

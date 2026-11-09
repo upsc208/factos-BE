@@ -45,3 +45,7 @@ data/
 # Claude Code
 CLAUDE.md
 .claude/
+
+# compose 배포 상태 (deploy.sh가 쓰는 서버 파일)
+infra/compose/tags.env
+infra/compose/tags.env.tmp

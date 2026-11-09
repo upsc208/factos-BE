@@ -1,14 +1,14 @@
 # factos 전체 스택 (설계도: Oracle Cloud VM 한 대 · Docker Compose)
 #
-#   cd infra/compose
-#   cp .env.example .env   # 값 채우기
-#   docker compose up -d --build
+#   운영:  CI가 GHCR에 올린 이미지를 받는다 — deploy.sh가 docker compose pull/up을 부른다
+#   로컬:  docker compose -f docker-compose.yml -f docker-compose.build.yml up -d --build
+#          (build 설정은 docker-compose.build.yml에만 있다)
+#
+# 이미지 태그는 tags.env(deploy.sh가 쓴다)의 BACKEND_TAG / WEB_TAG / CRAWLER_TAG. 없으면 latest
 #
 # 밖으로 열리는 건 nginx 하나뿐이다 (ports가 있는 서비스가 nginx뿐).
 # 나머지는 compose 네트워크 안에서 서비스 이름으로만 서로 부른다: backend:8080, web:3000, crawler:8000, postgres:5432, redis:6379
 #
-# build 경로는 세 저장소가 같은 폴더에 나란히 있다고 본다 (factos-BE / factos-FE / factos-CRAWLER).
-# 운영에서 CI가 만든 이미지를 쓰게 되면 build를 빼고 image만 남긴다 (2단계).
 
 name: factos
 
@@ -32,12 +32,7 @@ services:
         max-file: "3"
 
   web:
-    build:
-      context: ../../../factos-FE
-      args:
-        NEXT_PUBLIC_API_URL: ""            # 같은 출처 /api (nginx가 backend로 넘긴다)
-        NEXT_PUBLIC_SITE_URL: ${SITE_URL}
-    image: factos-web:latest
+    image: ${REGISTRY:-ghcr.io/upsc208}/factos-web:${WEB_TAG:-latest}
     restart: unless-stopped
     environment:
       INTERNAL_API_URL: http://backend:8080 # 서버 렌더링은 내부망으로 바로
@@ -45,8 +40,7 @@ services:
     logging: *logging
 
   backend:
-    build: ../..
-    image: factos-backend:latest
+    image: ${REGISTRY:-ghcr.io/upsc208}/factos-backend:${BACKEND_TAG:-latest}
     restart: unless-stopped
     env_file: .env
     environment:
@@ -70,8 +64,7 @@ services:
     logging: *logging
 
   crawler:
-    build: ../../../factos-CRAWLER
-    image: factos-crawler:latest
+    image: ${REGISTRY:-ghcr.io/upsc208}/factos-crawler:${CRAWLER_TAG:-latest}
     restart: unless-stopped
     volumes:
       # 번역 모델(4GB)은 이미지에 넣지 않는다

@@ -1,9 +1,15 @@
-# CI/CD 파이프라인 — 설계 문서: docs/ci-cd-design.md
+# CI/CD — factos-BE (football-svc)
 #
-# - PR: 빌드 + 테스트만 실행 (머지 관문)
-# - master push: 빌드 + 테스트 성공 시 OCI 서버에 자동 배포
-#   배포 로직(백업→교체→재시작→헬스체크→롤백)은 서버의 deploy.sh가 담당.
-#   이 워크플로는 "빌드하고, 파일 보내고, 스크립트 실행"만 함.
+#   PR:          테스트 + 비밀값 검사 + arm64 이미지 빌드·취약점 검사 (배포 안 함)
+#   master push: 위가 모두 통과하면 이미지를 GHCR에 올리고 서버 compose에 배포
+#
+#   test ─┐
+#         ├─▶ image (arm64 빌드 → Trivy → push) ─▶ deploy (compose 설정 전송 → deploy.sh backend <sha>)
+#   gitleaks ┘
+#
+# 보안 게이트: gitleaks(커밋 기록에 비밀값) · Trivy(이미지에 고칠 수 있는 HIGH/CRITICAL 취약점)
+# 하나라도 걸리면 이미지를 올리지 않고 배포도 하지 않는다.
+# 서버 쪽 배포 로직(헬스체크·롤백)은 infra/compose/deploy.sh가 한다.
 
 name: CI/CD
 
@@ -12,76 +18,105 @@ on:
   push:
     branches: [master]
 
+permissions:
+  contents: read
+
+env:
+  IMAGE: ghcr.io/${{ github.repository_owner }}/factos-backend
+  SERVICE: backend
+
 jobs:
-  # 빌드와 배포를 **한 잡에서** 한다.
-  #
-  # 예전에는 build/deploy를 나누고 jar를 아티팩트로 주고받았는데,
-  # 2026-08-21에 아티팩트 스토리지 한도가 차서 업로드가 실패하며 배포가 통째로 막혔다
-  # (Failed to CreateArtifact: Artifact storage quota has been hit).
-  # 잡을 합치면 jar가 러너를 떠날 이유가 없다 — 저장 한도와 무관해진다.
-  build-deploy:
+  test:
     runs-on: ubuntu-latest
-
-    # 배포 중 또 push해도 중단 없이 순서대로 (동시 배포 방지).
-    # ref별로 묶어서 PR 실행끼리는 서로 안 기다리게 한다
-    concurrency:
-      group: deploy-${{ github.ref }}
-      cancel-in-progress: false
-
-    # 채팅 통합 테스트(ChatRoomIntegrationTest)가 실제 Redis를 쓴다.
-    # 없으면 그 테스트만 조용히 건너뛰므로, 여기 두어야 실제 검증 관문이 된다.
+    # 채팅 통합 테스트가 실제 Redis를 쓴다 (없으면 그 테스트만 건너뛰어 관문이 약해진다)
     services:
       redis:
         image: redis:7-alpine
-        ports:
-          - 6379:6379
+        ports: ["6379:6379"]
         options: >-
-          --health-cmd "redis-cli ping"
-          --health-interval 5s
-          --health-timeout 3s
-          --health-retries 10
-
+          --health-cmd "redis-cli ping" --health-interval 5s --health-timeout 3s --health-retries 10
     steps:
-      # 코드 받기
       - uses: actions/checkout@v4
-
-      # Java 21 설치 (build.gradle.kts의 toolchain과 동일 버전)
       - uses: actions/setup-java@v4
         with:
           distribution: temurin
           java-version: 21
-
-      # Gradle 의존성 캐싱 — 두 번째 실행부터 빌드 시간 단축
       - uses: gradle/actions/setup-gradle@v4
-
-      # 빌드 + 테스트 (h2 프로파일이라 외부 DB/API 키 불필요.
-      # 채팅 통합 테스트만 위 redis 서비스를 사용하며, 테스트 전용 DB 인덱스 15를 쓴다)
       - name: Build & test
         run: ./gradlew build
 
-      # ── 여기부터 배포. master push일 때만 돈다 (PR은 위 빌드·테스트까지가 관문) ──
+  gitleaks:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0   # 지금 파일만이 아니라 커밋 기록 전체를 본다
+      - name: Scan git history for secrets
+        run: docker run --rm -v "$PWD:/repo" zricethezav/gitleaks:v8.24.2 git /repo --no-banner --redact -v
 
-      # SSH 준비: 개인 키 복원 + 서버 호스트 키 등록
-      - name: Setup SSH
+  image:
+    needs: [test, gitleaks]
+    # 운영 서버(Oracle A1)가 arm64라 arm64 러너에서 바로 빌드한다 (에뮬레이션 없이)
+    runs-on: ubuntu-24.04-arm
+    permissions:
+      contents: read
+      packages: write
+    steps:
+      - uses: actions/checkout@v4
+      - uses: docker/setup-buildx-action@v3
+
+      - name: Build (arm64)
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          load: true
+          tags: ${{ env.IMAGE }}:${{ github.sha }}
+          labels: org.opencontainers.image.source=https://github.com/${{ github.repository }}
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+
+      # .trivyignore: 해당 없음을 확인하고 만료일을 단 예외 (Spring 6.2에 수정판이 없는 3건)
+      - name: Trivy — 고칠 수 있는 HIGH/CRITICAL이 있으면 실패
+        run: |
+          docker run --rm -v /var/run/docker.sock:/var/run/docker.sock -v "$PWD:/repo:ro" aquasec/trivy:0.58.1 \
+            image --severity CRITICAL,HIGH --ignore-unfixed --scanners vuln --exit-code 1 \
+            --ignorefile /repo/.trivyignore "${IMAGE}:${GITHUB_SHA}"
+
+      - name: Push to GHCR
         if: github.event_name == 'push' && github.ref == 'refs/heads/master'
+        run: |
+          echo "${{ secrets.GITHUB_TOKEN }}" | docker login ghcr.io -u "${{ github.actor }}" --password-stdin
+          docker tag "${IMAGE}:${GITHUB_SHA}" "${IMAGE}:latest"
+          docker push "${IMAGE}:${GITHUB_SHA}"
+          docker push "${IMAGE}:latest"
+
+  deploy:
+    needs: image
+    if: github.event_name == 'push' && github.ref == 'refs/heads/master'
+    runs-on: ubuntu-latest
+    # 배포 중 또 push해도 겹치지 않게 순서대로
+    concurrency:
+      group: deploy-production
+      cancel-in-progress: false
+    steps:
+      - uses: actions/checkout@v4
+      - name: Setup SSH
         run: |
           mkdir -p ~/.ssh
           echo "${{ secrets.OCI_SSH_KEY }}" > ~/.ssh/deploy_key
           chmod 600 ~/.ssh/deploy_key
           ssh-keyscan -H "${{ secrets.OCI_HOST }}" >> ~/.ssh/known_hosts
 
-      # jar와 deploy.sh 전송.
-      # build/libs에는 실행 jar와 -plain.jar가 같이 나온다 — 실행 jar만 골라야 한다
-      - name: Transfer files
-        if: github.event_name == 'push' && github.ref == 'refs/heads/master'
+      # compose·nginx 설정과 deploy.sh는 이 저장소가 주인이라 백엔드 배포 때 함께 보낸다.
+      # 서버의 .env(비밀값)와 tags.env(배포된 태그)는 건드리지 않는다
+      - name: Send compose config
         run: |
-          JAR=$(ls build/libs/*.jar | grep -v -- '-plain' | head -1)
-          if [ -z "$JAR" ]; then echo "실행 jar를 찾지 못했습니다"; exit 1; fi
-          echo "보낼 jar: $JAR"
-          scp -i ~/.ssh/deploy_key "$JAR" "${{ secrets.OCI_USER }}@${{ secrets.OCI_HOST }}:/opt/atleti-news/app-new.jar"
-          scp -i ~/.ssh/deploy_key infra/deploy.sh "${{ secrets.OCI_USER }}@${{ secrets.OCI_HOST }}:/opt/atleti-news/deploy.sh"
+          DEST="${{ secrets.OCI_USER }}@${{ secrets.OCI_HOST }}:/opt/factos/compose"
+          ssh -i ~/.ssh/deploy_key "${{ secrets.OCI_USER }}@${{ secrets.OCI_HOST }}" "mkdir -p /opt/factos/compose/nginx"
+          scp -i ~/.ssh/deploy_key infra/compose/docker-compose.yml infra/compose/deploy.sh "$DEST/"
+          scp -i ~/.ssh/deploy_key infra/compose/nginx/*.conf "$DEST/nginx/"
 
-      # 배포 실행 — 헬스체크 실패 시 deploy.sh가 롤백하고 실패 코드 반환 → 여기가 ❌로 표시됨
       - name: Deploy
-        if: github.event_name == 'push' && github.ref == 'refs/heads/master'
-        run: ssh -i ~/.ssh/deploy_key "${{ secrets.OCI_USER }}@${{ secrets.OCI_HOST }}" "chmod +x /opt/atleti-news/deploy.sh && /opt/atleti-news/deploy.sh"
+        run: |
+          ssh -i ~/.ssh/deploy_key "${{ secrets.OCI_USER }}@${{ secrets.OCI_HOST }}" \
+            "chmod +x /opt/factos/compose/deploy.sh && /opt/factos/compose/deploy.sh ${SERVICE} ${GITHUB_SHA}"

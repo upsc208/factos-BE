@@ -16,8 +16,9 @@ RUN ./gradlew --no-daemon bootJar -x test \
 
 FROM eclipse-temurin:21-jre
 WORKDIR /app
-# root로 돌리지 않는다. curl은 헬스체크용
-RUN apt-get update && apt-get install -y --no-install-recommends curl \
+# root로 돌리지 않는다. curl은 헬스체크용.
+# upgrade: 베이스 이미지가 나온 뒤 패치된 OS 패키지를 받는다 (CI Trivy 게이트가 고칠 수 있는 취약점을 막는다)
+RUN apt-get update && apt-get upgrade -y && apt-get install -y --no-install-recommends curl \
  && rm -rf /var/lib/apt/lists/* \
  && useradd --system --uid 10001 app
 COPY --from=build --chown=app /app.jar /app/app.jar

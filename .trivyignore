@@ -1,0 +1,12 @@
+# Trivy 게이트에서 빼는 취약점. 하나하나 "왜 우리에게 해당 없는지"와 만료일을 적는다.
+# 만료일(exp)이 지나면 다시 걸린다 — 그때까지 Spring Boot 4(Spring Framework 7)로 올린다.
+# Spring Framework 6.2.x에는 이 셋의 수정판이 없다 (7.0.9에서만 고쳐짐).
+# 2026-11-09 확인: 코드에 XsltView, WebFlux 함수형 라우터(RouterFunction/coRouter), SSE가 없다.
+# WebFlux는 외부 API 호출용 WebClient로만 쓴다.
+
+# XsltView 경로 제한 미흡 → RCE. XsltView를 쓰지 않는다
+CVE-2026-47884 exp:2027-03-01
+# SSE + 뷰 프래그먼트 스트림 손상. SSE를 쓰지 않는다
+CVE-2026-47890 exp:2027-03-01
+# WebFlux 함수형 엔드포인트 헤더 조건 우회. 함수형 엔드포인트가 없다
+CVE-2026-47892 exp:2027-03-01
