@@ -59,6 +59,7 @@ class AuthController(
     private val memberRepository: MemberRepository,
     private val memberService: MemberService,
     private val moderation: ModerationService,
+    private val memberEvents: com.atleti.news.event.MemberEvents,
 ) {
     private val log = LoggerFactory.getLogger(AuthController::class.java)
     private val random = SecureRandom()
@@ -105,7 +106,8 @@ class AuthController(
         }
 
         val member = try {
-            upsert(oauthClient.fetchProfile(endpoints, code))
+            // 로그인 때마다 지금 상태를 다른 서비스에 알린다 (새 회원·사진 변경). 이 메서드의 트랜잭션 안에서 아웃박스에 적힌다
+            upsert(oauthClient.fetchProfile(endpoints, code)).also { memberEvents.updated(it) }
         } catch (e: Exception) {
             log.error("❌ [Auth] {} 로그인 실패: {}", endpoints.name, e.message)
             return redirectToFront(returnTo, failed = true, clearState = true)

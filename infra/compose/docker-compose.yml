@@ -7,7 +7,11 @@
 # 이미지 태그는 tags.env(deploy.sh가 쓴다)의 BACKEND_TAG / WEB_TAG / CRAWLER_TAG. 없으면 latest
 #
 # 밖으로 열리는 건 nginx 하나뿐이다 (ports가 있는 서비스가 nginx뿐).
-# 나머지는 compose 네트워크 안에서 서비스 이름으로만 서로 부른다: backend:8080, web:3000, crawler:8000, postgres:5432, redis:6379
+# 나머지는 compose 네트워크 안에서 서비스 이름으로만 서로 부른다: backend:8080, travel:8090, web:3000, crawler:8000, postgres:5432, travel-db:5432, redis:6379
+#
+# 서비스와 DB (MSA — DB를 같이 쓰지 않는다)
+#   backend(football-svc) ─ postgres      travel(travel-svc) ─ travel-db (PostGIS)
+#   둘 사이는 REST(travel → backend:8080)와 Redis Stream(events:match)으로만 통신한다
 #
 
 name: factos
@@ -25,6 +29,7 @@ services:
     depends_on:
       - web
       - backend
+      - travel
     logging: &logging
       driver: json-file
       options:
@@ -79,6 +84,46 @@ services:
       start_period: 120s
     logging: *logging
 
+  # travel-svc — 축구 여행 (경기장 가이드·펍 지도·직관 기록·킥오프 알림). 자기 DB(travel-db)를 쓴다
+  travel:
+    image: ${REGISTRY:-ghcr.io/upsc208}/factos-travel:${TRAVEL_TAG:-latest}
+    restart: unless-stopped
+    environment:
+      TRAVEL_DB_HOST: travel-db
+      TRAVEL_DB_PORT: "5432"
+      TRAVEL_DB_NAME: travel
+      TRAVEL_DB_USERNAME: travel
+      TRAVEL_DB_PASSWORD: ${TRAVEL_DB_PASSWORD}
+      TRAVEL_ADMIN_KEY: ${TRAVEL_ADMIN_KEY:-}
+      REDIS_HOST: redis
+      FOOTBALL_BASE_URL: http://backend:8080   # football-svc 공개 API·JWKS를 내부망으로
+      WEB_ALLOWED_ORIGINS: ${SITE_URL}         # 글·댓글 쓰기 Origin 검사
+    depends_on:
+      travel-db:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    mem_limit: 1g
+    logging: *logging
+
+  # travel-svc 전용 DB. PostGIS가 들어 있다 (arm64도 되는 다중 아키텍처 이미지)
+  travel-db:
+    image: imresamu/postgis:16-3.5
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: travel
+      POSTGRES_USER: travel
+      POSTGRES_PASSWORD: ${TRAVEL_DB_PASSWORD}
+    volumes:
+      - travel-pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U travel -d travel"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+    mem_limit: 1g
+    logging: *logging
+
   postgres:
     # 설계도의 pgvector를 미리 쓸 수 있는 이미지 (확장은 CREATE EXTENSION vector로 켤 때만 쓰인다)
     image: pgvector/pgvector:pg16
@@ -115,3 +160,4 @@ services:
 volumes:
   pgdata:
   redisdata:
+  travel-pgdata:

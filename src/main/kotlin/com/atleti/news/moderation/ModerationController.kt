@@ -131,7 +131,10 @@ data class AdminMemberResponse(
 @Tag(name = "Admin Member API", description = "운영자: 회원 검색, 관리자 권한 부여")
 @RestController
 @RequestMapping("/api/admin/members")
-class AdminMemberController(private val members: MemberRepository) {
+class AdminMemberController(
+    private val members: MemberRepository,
+    private val memberEvents: com.atleti.news.event.MemberEvents,
+) {
 
     @Operation(summary = "닉네임으로 회원 찾기")
     @GetMapping
@@ -143,6 +146,7 @@ class AdminMemberController(private val members: MemberRepository) {
 
     @Operation(summary = "권한 바꾸기", description = "role: MEMBER | TEAM_ADMIN | ADMIN. TEAM_ADMIN이면 club(arsenal…) 필수")
     @PutMapping("/{id}/role")
+    @org.springframework.transaction.annotation.Transactional
     fun changeRole(@PathVariable id: Long, @RequestBody body: MemberRoleRequest): AdminMemberResponse {
         val member = members.findById(id).orElseThrow { NotFoundException("회원을 찾을 수 없습니다. ID: $id") }
         val role = MemberRole.entries.find { it.name == body.role?.trim()?.uppercase() }
@@ -152,7 +156,7 @@ class AdminMemberController(private val members: MemberRepository) {
         } else null
         member.role = role.takeIf { it != MemberRole.MEMBER }
         member.adminClub = club
-        return toResponse(members.save(member))
+        return toResponse(members.save(member).also { memberEvents.updated(it) })
     }
 
     private fun toResponse(m: com.atleti.news.member.domain.Member) =

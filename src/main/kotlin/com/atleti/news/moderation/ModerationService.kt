@@ -30,6 +30,7 @@ class ModerationService(
     private val memberRepository: MemberRepository,
     private val newsArticleRepository: NewsArticleRepository,
     private val reportRepository: CommentReportRepository,
+    private val memberEvents: com.atleti.news.event.MemberEvents,
 ) {
     private val log = LoggerFactory.getLogger(javaClass)
 
@@ -96,6 +97,7 @@ class ModerationService(
             )
         )
         if (deleteComment) commentRepository.delete(comment)
+        memberEvents.updated(target) // 다른 서비스(travel-svc)도 정지를 안다
         // 신고된 댓글이면 정지로 처리된 것 (댓글을 남겨 둬도)
         reportRepository.closeOpen(commentId, ReportStatus.RESOLVED, admin.nickname, OffsetDateTime.now())
         log.info("⛔ [Moderation] 정지 member={} days={} by={} comment={}", target.id, days, admin.id, commentId)
@@ -112,6 +114,8 @@ class ModerationService(
         if (!s.isActive()) throw InvalidRequestException("이미 끝났거나 해제된 정지입니다.")
         s.liftedAt = OffsetDateTime.now()
         s.liftedByNickname = admin.nickname
+        suspensionRepository.saveAndFlush(s)
+        s.memberId?.let { id -> memberRepository.findById(id).ifPresent { memberEvents.updated(it) } }
         log.info("✅ [Moderation] 정지 해제 suspension={} by={}", suspensionId, admin.id)
         return s
     }

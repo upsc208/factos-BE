@@ -1,5 +1,9 @@
 package com.atleti.news.match.domain
 
+
+import com.atleti.news.event.MatchEvents
+import com.atleti.news.event.OutboxWriter
+import java.time.OffsetDateTime
 import org.slf4j.LoggerFactory
 import com.atleti.news.news.domain.CollectionLog
 import com.atleti.news.news.domain.CollectionStatus
@@ -29,6 +33,7 @@ class FootballDataService(
     private val upcomingMatchRepository: UpcomingMatchRepository,
     private val matchScraperService: MatchScraperService,
     private val transactionTemplate: TransactionTemplate,
+    private val outbox: OutboxWriter,
     // 데이터가 비었을 때 요청을 계기로 FotMob을 여는지. 테스트 프로필은 끈다 (테스트가 실제 사이트를 부르면 안 된다)
     @Value("\${atleti.match.refresh-on-empty:true}") private val refreshOnEmpty: Boolean = true,
 ) {
@@ -120,12 +125,7 @@ class FootballDataService(
                 failed += club.id
                 return@forEachIndexed
             }
-            withContext(Dispatchers.IO) {
-                transactionTemplate.executeWithoutResult {
-                    upcomingMatchRepository.deleteAllByClub(club.id)
-                    upcomingMatchRepository.saveAll(overview.upcoming)
-                }
-            }
+            withContext(Dispatchers.IO) { replaceUpcoming(club, overview.upcoming) }
             upcomingTotal += overview.upcoming.size
             overview.lastMatch?.let { node ->
                 if (matchScraperService.saveFinishedMatch(node) != null) finishedTotal++
@@ -142,6 +142,22 @@ class FootballDataService(
         )
         return upcomingTotal to finishedTotal
     }
+
+    /**
+     * 한 팀의 다가올 경기를 통째로 바꾸고, 바뀐 점을 경기 이벤트로 아웃박스에 적는다 — **한 트랜잭션**.
+     * 일정은 바뀌었는데 이벤트가 빠지거나, 롤백됐는데 이벤트만 나가는 일이 없게 (docs/events.md)
+     *
+     * @return 아웃박스에 적은 이벤트 수
+     */
+    fun replaceUpcoming(club: Club, upcoming: List<UpcomingMatch>): Int =
+        transactionTemplate.execute {
+            val before = upcomingMatchRepository.findAllByClubOrderByMatchDateAsc(club.id)
+            upcomingMatchRepository.deleteAllByClub(club.id)
+            upcomingMatchRepository.saveAll(upcoming)
+            val changes = MatchEvents.diff(club, before, upcoming, OffsetDateTime.now())
+            changes.forEach { outbox.record(it.type, it.payload.matchId, it.payload) }
+            changes.size
+        } ?: 0
 
     /** 쿨다운이 지났으면 갱신 권한을 가져간다. 동시 요청 중 하나만 true를 받는다. */
     private fun claimRefreshSlot(): Boolean {

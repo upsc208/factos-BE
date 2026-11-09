@@ -39,6 +39,8 @@ dependencies {
 	implementation("org.jetbrains.kotlinx:kotlinx-coroutines-core")
 	implementation("org.jetbrains.kotlinx:kotlinx-coroutines-reactor")
 	implementation("org.jsoup:jsoup:1.24.1")
+	// 로그인 토큰(JWT ES256) + JWKS — 다른 서비스가 공개 키로 검증한다
+	implementation("com.nimbusds:nimbus-jose-jwt:10.10")
 	implementation("org.json:json:20250107")
 	implementation("io.github.cdimascio:dotenv-kotlin:6.4.1")
 	implementation("org.ahocorasick:ahocorasick:0.6.3")

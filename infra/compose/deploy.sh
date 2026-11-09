@@ -10,7 +10,7 @@
 set -euo pipefail
 cd "$(dirname "$0")"
 
-SERVICE="${1:?서비스(backend|web|crawler|config)를 주세요}"
+SERVICE="${1:?서비스(backend|web|crawler|travel|config)를 주세요}"
 TAG="${2:-}"
 HEALTH_TIMEOUT=300   # 초. 크롤러가 번역 모델(4GB)을 읽는 데 2분쯤 걸린다
 
@@ -21,6 +21,7 @@ case "$SERVICE" in
   backend) VAR=BACKEND_TAG ;;
   web)     VAR=WEB_TAG ;;
   crawler) VAR=CRAWLER_TAG ;;
+  travel)  VAR=TRAVEL_TAG ;;
   config)  VAR="" ;;
   *) echo "[deploy] 모르는 서비스: $SERVICE"; exit 2 ;;
 esac

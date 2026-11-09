@@ -21,6 +21,8 @@ class AuthProperties(
     @Value("\${atleti.auth.kakao.client-secret:}") kakaoClientSecret: String,
     @Value("\${atleti.auth.google.client-id:}") googleClientId: String,
     @Value("\${atleti.auth.google.client-secret:}") googleClientSecret: String,
+    // JWT 서명 키 (EC P-256 JWK를 base64로). 비면 뜰 때마다 임시 키 — 개발용
+    @Value("\${atleti.auth.jwt-key:}") private val jwtKey: String = "",
 ) {
     data class App(val clientId: String, val clientSecret: String) {
         val configured: Boolean get() = clientId.isNotBlank()
@@ -36,5 +38,7 @@ class AuthProperties(
     fun callbackUrl(endpoints: OAuthEndpoints): String =
         "${callbackBaseUrl.trimEnd('/')}/api/auth/${endpoints.name.lowercase()}/callback"
 
-    val sessionTokens: SessionTokens by lazy { SessionTokens(tokenSecret.trim(), sessionDays * 24 * 3600) }
+    val sessionTokens: SessionTokens by lazy {
+        SessionTokens(tokenSecret.trim(), sessionDays * 24 * 3600, if (tokenSecret.isNotBlank()) JwtKeys(jwtKey) else null)
+    }
 }

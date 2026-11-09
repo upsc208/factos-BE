@@ -28,6 +28,7 @@ class MatchScraperService(
     private val objectMapper: ObjectMapper,
     private val matchResultRepository: MatchResultRepository,
     private val transactionTemplate: TransactionTemplate,
+    private val outbox: com.atleti.news.event.OutboxWriter,
     // 기본값은 실제 FotMob. 로컬 리허설에서만 가짜 서버로 돌린다 (scripts/fake-live-match.js)
     @Value("\${atleti.source.fotmob-base-url}") private val fotmobBaseUrl: String
 ) {
@@ -144,12 +145,18 @@ class MatchScraperService(
         // **최근 경기 기록이 통째로 사라진 상태**가 남는다 — 화면의 직전 경기 카드가 빈다.
         // suspend 함수에 @Transactional을 붙여도 withContext가 스레드를 옮겨 경계가 안 생긴다
         // (근거: SuspendTransactionTest). 그래서 명시적으로 경계를 친다.
+        // 처음 저장될 때만 match.finished를 아웃박스에 같이 적는다 (상세만 다시 받는 경우는 이미 알린 경기)
         return transactionTemplate.execute {
-            matchResultRepository.findByMatchId(matchId)?.let {
+            val existing = matchResultRepository.findByMatchId(matchId)
+            existing?.let {
                 matchResultRepository.delete(it)
                 matchResultRepository.flush()
             }
-            matchResultRepository.save(matchResult)
+            matchResultRepository.save(matchResult).also { saved ->
+                if (existing == null) {
+                    outbox.record(com.atleti.news.event.MatchEvents.FINISHED, saved.matchId, com.atleti.news.event.MatchEvents.result(saved))
+                }
+            }
         }
     }
 

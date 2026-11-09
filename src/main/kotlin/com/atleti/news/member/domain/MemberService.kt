@@ -17,6 +17,7 @@ class MemberService(
     private val bookmarkRepository: BookmarkRepository,
     private val slangFilter: SlangFilterService,
     private val kakaoUnlinker: KakaoUnlinker,
+    private val memberEvents: com.atleti.news.event.MemberEvents,
 ) {
     private val log = LoggerFactory.getLogger(MemberService::class.java)
 
@@ -48,7 +49,7 @@ class MemberService(
         member.favoriteTeam = team
         member.signupCompleted = true
         return try {
-            memberRepository.saveAndFlush(member)
+            memberRepository.saveAndFlush(member).also { memberEvents.updated(it) }
         } catch (e: DataIntegrityViolationException) {
             // 확인과 저장 사이에 다른 사람이 같은 닉네임을 가져간 경우 — 유니크 제약이 막았다
             throw ConflictException(DUPLICATE)
@@ -63,6 +64,7 @@ class MemberService(
     fun withdraw(member: Member) {
         bookmarkRepository.deleteAllByMemberId(member.id!!)
         memberRepository.delete(member)
+        memberEvents.deleted(member.id!!)
         // 카카오 쪽 연결도 끊어 둔다 (다음 로그인 때 동의 화면이 다시 뜬다). 실패해도 탈퇴는 진행
         if (member.provider == AuthProvider.KAKAO) kakaoUnlinker.unlink(member.providerUserId)
         log.info("👋 [Member] 탈퇴 id={}", member.id)
