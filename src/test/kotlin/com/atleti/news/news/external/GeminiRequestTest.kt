@@ -37,7 +37,7 @@ class GeminiRequestTest {
     fun `키를 헤더로 보내고 URL에는 남기지 않는다`() {
         val service = geminiService()
 
-        runBlocking { service.generateHeadlines(listOf("- [이적설] 테스트 기사"), emptyList()) }
+        runBlocking { service.generateHeadlines(listOf("- 테스트 기사"), emptyList(), com.atleti.news.news.domain.Club.ARSENAL) }
 
         assertThat(capturedKeyHeader).isEqualTo("secret-key")
         assertThat(capturedUri).doesNotContain("secret-key")
@@ -48,7 +48,7 @@ class GeminiRequestTest {
     fun `설정한 모델 이름으로 호출한다`() {
         val service = geminiService()
 
-        runBlocking { service.generateHeadlines(listOf("- [이적설] 테스트 기사"), emptyList()) }
+        runBlocking { service.generateHeadlines(listOf("- 테스트 기사"), emptyList(), com.atleti.news.news.domain.Club.ARSENAL) }
 
         assertThat(capturedUri).contains("/v1/models/gemini-test-model:generateContent")
     }

@@ -2,6 +2,7 @@ package com.atleti.news.match.external
 
 import org.slf4j.LoggerFactory
 import com.atleti.news.match.domain.MatchResult
+import com.atleti.news.match.domain.FotmobPlayerRating
 import com.atleti.news.match.domain.UpcomingMatch
 import com.atleti.news.news.domain.Club
 import com.atleti.news.match.domain.MatchResultRepository
@@ -34,32 +35,44 @@ class MatchScraperService(
 
     private fun teamUrl(teamId: String, slug: String) = "$fotmobBaseUrl/teams/$teamId/overview/$slug"
 
-    suspend fun scrapeAndSaveLatestMatch(): MatchResult? = withContext(Dispatchers.IO) {
-        try {
-            val lastMatchNode = fetchOverviewNode(ATLETI_TEAM_ID, "atletico-madrid").at("/lastMatch")
-            if (!lastMatchNode.isMissingNode) {
-                return@withContext saveLastMatch(lastMatchNode)
-            }
-            null
-        } catch (e: Exception) {
-            log.error("❌ [FotMob Scrape] 실패: ${e.message}", e)
-            null
-        }
-    }
+    /** 팀 페이지 한 번에서 얻는 것: 다가올 경기 + 직전 경기 노드 */
+    class ClubOverview(val upcoming: List<UpcomingMatch>, val lastMatch: JsonNode?)
 
     /**
-     * 다가올 경기를 킥오프 순으로 [limit]개 가져온다. (저장은 호출자 몫)
+     * 팀 페이지를 한 번 열어 다가올 경기 [limit]개와 직전 경기 노드를 함께 가져온다 (저장은 호출자 몫).
      *
-     * 팀 페이지 자체가 아틀레티코 1군 일정이라, RapidAPI 검색과 달리
-     * 여자팀·유스팀·동명이팀(미네이로 등)을 걸러낼 필요가 없다.
+     * 팀 페이지 자체가 그 팀 1군 일정이라 여자팀·유스팀을 걸러낼 필요가 없다.
      *
      * @throws FotMobScrapeException 페이지 접속·파싱에 실패한 경우
      */
-    suspend fun scrapeUpcomingMatches(club: Club, limit: Int = 3): List<UpcomingMatch> = withContext(Dispatchers.IO) {
-        val fixtures = fetchOverviewNode(club.fotmobTeamId, club.bbcSlug).at("/overviewFixtures")
+    suspend fun scrapeClub(club: Club, limit: Int = 3): ClubOverview = withContext(Dispatchers.IO) {
+        val overview = fetchOverviewNode(club.fotmobTeamId, club.bbcSlug)
+        val fixtures = overview.at("/overviewFixtures")
         if (!fixtures.isArray) throw FotMobScrapeException("overviewFixtures 노드를 찾지 못했습니다")
 
-        selectUpcoming(fixtures, Instant.now(), limit, club.fotmobTeamId, club.id)
+        ClubOverview(
+            upcoming = selectUpcoming(fixtures, Instant.now(), limit, club.fotmobTeamId, club.id),
+            lastMatch = overview.at("/lastMatch").takeIf { !it.isMissingNode && !it.isNull && it.at("/id").asText().isNotBlank() },
+        )
+    }
+
+    /**
+     * 끝난 경기를 저장한다. 상세(선발·통계·평점)까지 받아 둔 경기는 다시 받지 않는다 —
+     * Big6 맞대결은 두 팀 페이지에 같은 경기가 나오고, 하루 두 번 갱신마다 상세 페이지를 열 필요가 없다.
+     *
+     * @return 저장된(또는 이미 있던) 경기. 실패하면 null
+     */
+    suspend fun saveFinishedMatch(lastMatch: JsonNode): MatchResult? = withContext(Dispatchers.IO) {
+        val matchId = lastMatch.at("/id").asText()
+        matchResultRepository.findByMatchId(matchId)
+            ?.takeIf { it.playerRatings != null && it.homeTeamId != null }
+            ?.let { return@withContext it }
+        try {
+            saveLastMatch(lastMatch)
+        } catch (e: Exception) {
+            log.error("❌ [FotMob Scrape] 경기 {} 저장 실패: {}", matchId, e.message, e)
+            null
+        }
     }
 
     /**
@@ -161,7 +174,6 @@ class MatchScraperService(
     }
 
     companion object {
-        internal const val ATLETI_TEAM_ID = "9906"
         internal val KST: ZoneId = ZoneId.of("Asia/Seoul")
         internal const val USER_AGENT =
             "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36"
@@ -174,7 +186,7 @@ class MatchScraperService(
          */
         internal fun selectUpcoming(
             fixtures: JsonNode, now: Instant, limit: Int,
-            teamId: String = ATLETI_TEAM_ID, club: String? = null,
+            teamId: String, club: String? = null,
         ): List<UpcomingMatch> =
             fixtures.asSequence()
                 .filter { !it.at("/status/finished").asBoolean() && !it.at("/status/cancelled").asBoolean() }
@@ -187,9 +199,9 @@ class MatchScraperService(
                 .map { (node, kickoff) -> toUpcomingEntity(node, kickoff, teamId, club) }
                 .toList()
 
-        internal fun toUpcomingEntity(node: JsonNode, kickoff: Instant, teamId: String = ATLETI_TEAM_ID, club: String? = null): UpcomingMatch {
+        internal fun toUpcomingEntity(node: JsonNode, kickoff: Instant, teamId: String, club: String? = null): UpcomingMatch {
             // 홈/원정은 팀 이름이 아니라 FotMob 팀 ID로 판별한다.
-            // 상대에 Real Madrid·Rayo Vallecano처럼 madrid가 들어가는 팀이 있어 문자열 비교는 뒤집힌다.
+            // 이름 비교는 표기가 흔들리고(Man City / Manchester City) 상대 이름에 우리 이름이 섞이면 뒤집힌다.
             val isHome = node.at("/home/id").asText() == teamId
             val opponent = node.at("/opponent/name").asText()
                 .ifBlank { if (isHome) node.at("/away/name").asText() else node.at("/home/name").asText() }
@@ -213,11 +225,13 @@ class MatchScraperService(
         /**
          * 최근 경기 노드 + 상세 통계 → 저장할 엔티티. **순수 함수다** (I/O 없음).
          *
-         * 홈/원정을 팀 이름으로 판정하는데, 여기는 `lastMatch` 노드라 팀 ID가 없다.
+         * 홈/원정 팀 ID를 함께 저장한다. 맞대결은 두 팀이 행 하나를 같이 쓰므로 "우리 팀이 홈인가"는
+         * 응답을 만들 때 팀별로 정한다. [isHome] 컬럼은 [teamId] 기준 값이다.
          * 시각을 못 읽으면 원문을 그대로 둔다 — 지어내는 것보다 낫다.
          */
-        internal fun parseLastMatch(lastMatch: JsonNode, stats: Map<String, String>): MatchResult {
+        internal fun parseLastMatch(lastMatch: JsonNode, stats: Map<String, String>, teamId: String? = null): MatchResult {
             val homeTeam = lastMatch.at("/home/name").asText()
+            val homeTeamId = lastMatch.at("/home/id").asText().ifBlank { null }
             val utcTimeStr = lastMatch.at("/status/utcTime").asText()
             val kstTimeStr = runCatching {
                 ZonedDateTime.parse(utcTimeStr).withZoneSameInstant(KST)
@@ -232,9 +246,12 @@ class MatchScraperService(
                 awayScore = lastMatch.at("/away/score").asInt(),
                 matchDate = kstTimeStr,
                 tournament = lastMatch.at("/tournament/name").asText(),
-                isHome = homeTeam.contains("Atletico", ignoreCase = true) ||
-                    homeTeam.contains("Atlético", ignoreCase = true),
-                scorers = stats["scorers"], xg = stats["xg"],
+                isHome = teamId != null && homeTeamId == teamId,
+                homeTeamId = homeTeamId,
+                awayTeamId = lastMatch.at("/away/id").asText().ifBlank { null },
+                playerRatings = stats["playerRatings"],
+                playerOfTheMatch = stats["playerOfTheMatch"],
+                scorers = stats["scorers"], stats = stats["xg"],
                 possession = stats["possession"], shotsOnTarget = stats["shotsOnTarget"],
                 cards = stats["cards"], lineup = stats["lineup"],
                 substitutions = stats["substitutions"],
@@ -261,19 +278,13 @@ class MatchScraperService(
             if (topStats.isArray) {
                 for (statGroup in topStats) {
                     for (stat in statGroup.at("/stats")) {
-                        val title = stat.at("/title").asText()
-                        val key = when (title) {
-                            "Ball possession" -> "possession"
-                            "Expected goals (xG)" -> "xg"
-                            "Shots on target" -> "shotsOnTarget"
-                            "Total shots" -> "totalShots"
-                            "Corners" -> "corners"
-                            "Accurate passes" -> "passAccuracy"
-                            else -> null
-                        }
-                        if (key != null) {
-                            structuredStats[key] = mapOf("home" to stat.at("/stats/0").asText(), "away" to stat.at("/stats/1").asText())
-                        }
+                        // 그룹 머리글 행("Shots", "Passes" …)은 값이 없다 — 양쪽 값이 있는 행만
+                        val values = stat.at("/stats")
+                        if (!values.isArray || values.size() < 2 || values[0].isNull) continue
+                        // 키는 프론트 MatchResultCard/utils.ts의 STATS_TRANSLATIONS 키와 같아야 한글로 나온다
+                        val key = STAT_KEYS[stat.at("/title").asText()] ?: continue
+                        // 같은 지표가 여러 그룹에 반복된다 (xG가 Top stats와 xG 그룹에) — 처음 것만
+                        structuredStats.putIfAbsent(key, mapOf("home" to values[0].asText(), "away" to values[1].asText()))
                     }
                 }
             }
@@ -299,7 +310,7 @@ class MatchScraperService(
                             ))
                         }
                         "Card" -> {
-                            val color = if (event.at("/card").asText().contains("Yellow")) "Y" else "R"
+                            val color = if (event.at("/card").asText() == "Yellow") "Y" else "R" // YellowRed(경고 누적)는 퇴장
                             cardsStructured.add(mapOf("name" to name, "time" to time, "color" to color, "isHome" to isHomeEvent))
                         }
                         "Substitution" -> {
@@ -335,9 +346,48 @@ class MatchScraperService(
                     )
                 )
                 statsMap["lineup"] = objectMapper.writeValueAsString(lineupStructured)
+
+                // FotMob 선수 평점. 교체는 실제로 들어간 선수만 (막판 투입이면 평점 없이 들어간다)
+                val ratings = listOf("homeTeam" to true, "awayTeam" to false).flatMap { (team, isHome) ->
+                    val starters = lineup.at("/$team/starters").elements().asSequence().map { it to true }
+                    val subs = lineup.at("/$team/subs").elements().asSequence().map { it to false }
+                    (starters + subs).mapNotNull { (p, starter) ->
+                        val rating = p.at("/performance/rating").takeIf { it.isNumber }?.asDouble()
+                        val cameOn = p.at("/performance/substitutionEvents").any { it.at("/type").asText() == "subIn" }
+                        if (!starter && rating == null && !cameOn) return@mapNotNull null
+                        FotmobPlayerRating(
+                            name = p.at("/name").asText(),
+                            shirt = p.at("/shirtNumber").asText().ifBlank { null },
+                            rating = rating,
+                            isHome = isHome,
+                            starter = starter,
+                        )
+                    }.toList()
+                }
+                statsMap["playerRatings"] = objectMapper.writeValueAsString(ratings)
             }
+
+            content.at("/matchFacts/playerOfTheMatch/name/fullName").asText().takeIf { it.isNotBlank() }
+                ?.let { statsMap["playerOfTheMatch"] = it }
 
             return statsMap
         }
+
+        /** FotMob 통계 제목 → 프론트 표시 키 */
+        private val STAT_KEYS = mapOf(
+            "Ball possession" to "Possession",
+            "Expected goals (xG)" to "Expected Goals",
+            "Total shots" to "Shots",
+            "Shots on target" to "Shots on Target",
+            "Big chances" to "Big Chances",
+            "Accurate passes" to "Pass Accuracy",
+            "Corners" to "Corners",
+            "Keeper saves" to "Saves",
+            "Fouls committed" to "Fouls",
+            "Yellow cards" to "Yellow Cards",
+            "Red cards" to "Red Cards",
+            "Offsides" to "Offsides",
+            "Tackles" to "Tackles",
+        )
     }
 }

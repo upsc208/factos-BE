@@ -35,7 +35,21 @@ class MatchResult(
     val awayFormation: String? = null, // 원정팀 포메이션 (예: "4-3-3")
     val possession: String? = null, // 예: "45 - 55"
     val shotsOnTarget: String? = null, // 예: "5 - 3"
-    val xg: String? = null, // 예: "1.24 - 0.85"
+    val xg: String? = null, // 예전 통계 JSON 자리. VARCHAR(255)라 통계를 늘리면 넘친다 → 새 행은 [stats]에
+
+    // 통계 JSON (Map<표시 키, StatValue>). 운영 DB는 ddl-auto=update라 기존 xg 컬럼을 넓힐 수 없어 새 TEXT 컬럼을 둔다
+    @Column(columnDefinition = "TEXT")
+    val stats: String? = null,
+
+    // Big6 팀별 조회용 FotMob 팀 ID. Big6 맞대결은 행 하나를 두 팀이 같이 쓰므로 홈/원정은 이 값으로 정한다
+    // (운영 DB는 ddl-auto=update라 nullable)
+    val homeTeamId: String? = null,
+    val awayTeamId: String? = null,
+
+    // FotMob 선수 평점 JSON (List<FotmobPlayerRating>). 양 팀 모두
+    @Column(columnDefinition = "TEXT")
+    val playerRatings: String? = null,
+    val playerOfTheMatch: String? = null,
 
     val updatedAt: LocalDateTime = LocalDateTime.now()
 )

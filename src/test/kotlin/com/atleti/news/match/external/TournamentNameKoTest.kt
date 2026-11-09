@@ -7,6 +7,12 @@ class TournamentNameKoTest {
 
     @Test
     fun `FotMob이 실제로 내려주는 대회명을 한글로 바꾼다`() {
+        // Big6 일정 (2026-11 FotMob 일정 노드에서 확인)
+        assertEquals("프리미어리그", TournamentNameKo.toKorean("Premier League"))
+        assertEquals("FA컵", TournamentNameKo.toKorean("FA Cup"))
+        assertEquals("리그컵", TournamentNameKo.toKorean("EFL Cup"))
+        assertEquals("프리미어리그", TournamentNameKo.toKorean("Premier League 2026/2027"))
+
         // 일정 노드에서 확인한 실제 값 (leagueId 87 / 42 / 489)
         assertEquals("라리가", TournamentNameKo.toKorean("LaLiga"))
         assertEquals("챔피언스리그", TournamentNameKo.toKorean("Champions League"))

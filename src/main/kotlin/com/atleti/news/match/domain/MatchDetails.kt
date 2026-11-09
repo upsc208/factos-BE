@@ -8,3 +8,12 @@ data class CardInfo(val name: String, val time: String, val shirt: String?, val 
 data class PlayerInfo(val name: String, val shirt: String?)
 data class TeamLineupInfo(val formation: String?, val starters: List<PlayerInfo>)
 data class LineupInfo(val home: TeamLineupInfo, val away: TeamLineupInfo)
+
+/** FotMob 선수 평점 (경기 상세 lineup의 performance.rating). 교체로 안 뛴 선수는 빠진다 */
+data class FotmobPlayerRating(
+    val name: String,
+    val shirt: String?,
+    val rating: Double?,
+    val isHome: Boolean,
+    val starter: Boolean,
+)

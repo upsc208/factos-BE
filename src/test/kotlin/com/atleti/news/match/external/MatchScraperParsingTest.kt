@@ -1,10 +1,13 @@
 package com.atleti.news.match.external
 
+import com.atleti.news.match.domain.FotmobPlayerRating
 import com.atleti.news.match.external.MatchScraperService.Companion.parseKickoff
 import com.atleti.news.match.external.MatchScraperService.Companion.parseLastMatch
+import com.atleti.news.match.external.MatchScraperService.Companion.parseMatchStats
 import com.atleti.news.match.external.MatchScraperService.Companion.selectUpcoming
 import com.atleti.news.match.external.MatchScraperService.Companion.toUpcomingEntity
 import com.fasterxml.jackson.databind.ObjectMapper
+import com.fasterxml.jackson.module.kotlin.readValue
 import com.fasterxml.jackson.module.kotlin.registerKotlinModule
 import org.junit.jupiter.api.DisplayName
 import org.junit.jupiter.api.Test
@@ -14,12 +17,7 @@ import kotlin.test.assertNull
 import kotlin.test.assertTrue
 
 /**
- * FotMob 응답 파싱 검증.
- *
- * 전에는 이 코드에 테스트를 붙일 수 없었다. HTTP 요청과 파싱과 저장이 한 메서드에 붙어 있어
- * **테스트 더블을 끼울 이음매가 없었고**, 검증하려면 실제 FotMob을 불러야 했다
- * (docs/architecture.md 3.3). 파싱을 순수 함수로 떼어 내면서 저장해 둔 응답으로 검증할 수 있게 됐다 —
- * `NaverSportsClient.parseGame`이 이미 쓰던 방식이다.
+ * FotMob 응답 파싱 검증. 저장해 둔 응답 모양으로 순수 함수만 검증한다 (실제 FotMob을 부르지 않는다).
  *
  * 여기서 지키는 것은 **이미 한 번 틀렸던 판단들**이다. 홈/원정을 팀 이름으로 정하다 뒤집혔고,
  * 킥오프 형식이 두 가지로 오고, 저장 형식이 `ChatService`의 파서와 맞아야 한다.
@@ -29,27 +27,28 @@ class MatchScraperParsingTest {
     private val mapper = ObjectMapper().registerKotlinModule()
     private fun json(s: String) = mapper.readTree(s.trimIndent())
 
+    private val ARSENAL = "9825"
+
     // ── 홈/원정 판정 ─────────────────────────────────────────────────────
 
     @Test
     @DisplayName("홈/원정은 팀 이름이 아니라 팀 ID로 정한다")
     fun testIsHomeByTeamId() {
-        // 상대가 Real Madrid면 이름에 madrid가 들어간다. 문자열 비교로 정하면 뒤집힌다
         val node = json(
             """
             {
               "id": "4506789",
-              "home": { "id": "8633", "name": "Real Madrid" },
-              "away": { "id": "9906", "name": "Atletico Madrid" },
-              "opponent": { "name": "Real Madrid" },
-              "tournament": { "name": "LaLiga" }
+              "home": { "id": "8650", "name": "Liverpool" },
+              "away": { "id": "9825", "name": "Arsenal" },
+              "opponent": { "name": "Liverpool" },
+              "tournament": { "name": "Premier League" }
             }
             """
         )
 
-        val result = toUpcomingEntity(node, Instant.parse("2026-09-20T19:00:00Z"))
-        assertEquals(false, result.isHome, "아틀레티가 away인데 home으로 잡혔다")
-        assertEquals("Real Madrid", result.opponent)
+        val result = toUpcomingEntity(node, Instant.parse("2026-09-20T19:00:00Z"), ARSENAL)
+        assertEquals(false, result.isHome, "아스날이 away인데 home으로 잡혔다")
+        assertEquals("Liverpool", result.opponent)
     }
 
     @Test
@@ -75,33 +74,18 @@ class MatchScraperParsingTest {
     }
 
     @Test
-    @DisplayName("아틀레티가 홈이면 isHome이 참이다")
-    fun testIsHomeWhenAtletiIsHome() {
-        val node = json(
-            """
-            {
-              "id": "1", "home": { "id": "9906", "name": "Atletico Madrid" },
-              "away": { "id": "8371", "name": "Rayo Vallecano" },
-              "opponent": { "name": "Rayo Vallecano" }, "tournament": { "name": "LaLiga" }
-            }
-            """
-        )
-        assertTrue(toUpcomingEntity(node, Instant.parse("2026-09-20T19:00:00Z")).isHome)
-    }
-
-    @Test
     @DisplayName("opponent 이름이 비면 반대편 팀 이름으로 메꾼다")
     fun testOpponentFallback() {
         val node = json(
             """
             {
-              "id": "1", "home": { "id": "9906", "name": "Atletico Madrid" },
-              "away": { "id": "8371", "name": "Villarreal" },
-              "opponent": { "name": "" }, "tournament": { "name": "LaLiga" }
+              "id": "1", "home": { "id": "9825", "name": "Arsenal" },
+              "away": { "id": "8667", "name": "Hull" },
+              "opponent": { "name": "" }, "tournament": { "name": "Premier League" }
             }
             """
         )
-        assertEquals("Villarreal", toUpcomingEntity(node, Instant.parse("2026-09-20T19:00:00Z")).opponent)
+        assertEquals("Hull", toUpcomingEntity(node, Instant.parse("2026-09-20T19:00:00Z"), ARSENAL).opponent)
     }
 
     @Test
@@ -110,13 +94,13 @@ class MatchScraperParsingTest {
         val node = json(
             """
             {
-              "id": "1", "home": { "id": "9906", "name": "Atletico" },
+              "id": "1", "home": { "id": "9825", "name": "Arsenal" },
               "away": { "id": "2", "name": "X" }, "opponent": { "name": "X" },
               "tournament": { "name": "" }
             }
             """
         )
-        assertEquals("Tournament", toUpcomingEntity(node, Instant.parse("2026-09-20T19:00:00Z")).tournament)
+        assertEquals("Tournament", toUpcomingEntity(node, Instant.parse("2026-09-20T19:00:00Z"), ARSENAL).tournament)
     }
 
     // ── 저장 형식 ────────────────────────────────────────────────────────
@@ -129,13 +113,13 @@ class MatchScraperParsingTest {
         val node = json(
             """
             {
-              "id": "1", "home": { "id": "9906", "name": "A" }, "away": { "id": "2", "name": "B" },
-              "opponent": { "name": "B" }, "tournament": { "name": "LaLiga" }
+              "id": "1", "home": { "id": "9825", "name": "A" }, "away": { "id": "2", "name": "B" },
+              "opponent": { "name": "B" }, "tournament": { "name": "Premier League" }
             }
             """
         )
 
-        val result = toUpcomingEntity(node, Instant.parse("2026-08-23T15:00:00Z"))
+        val result = toUpcomingEntity(node, Instant.parse("2026-08-23T15:00:00Z"), ARSENAL)
         assertEquals("2026-08-24T00:00:00+09:00", result.matchDate)
     }
 
@@ -162,17 +146,17 @@ class MatchScraperParsingTest {
     private val fixtures = """
         [
           { "id": "past",      "status": { "utcTime": "2026-08-01T15:00:00Z", "finished": true,  "cancelled": false },
-            "home": { "id": "9906", "name": "A" }, "away": { "id": "2", "name": "B" }, "opponent": { "name": "B" }, "tournament": { "name": "L" } },
+            "home": { "id": "9825", "name": "A" }, "away": { "id": "2", "name": "B" }, "opponent": { "name": "B" }, "tournament": { "name": "L" } },
           { "id": "cancelled", "status": { "utcTime": "2026-09-10T15:00:00Z", "finished": false, "cancelled": true },
-            "home": { "id": "9906", "name": "A" }, "away": { "id": "3", "name": "C" }, "opponent": { "name": "C" }, "tournament": { "name": "L" } },
+            "home": { "id": "9825", "name": "A" }, "away": { "id": "3", "name": "C" }, "opponent": { "name": "C" }, "tournament": { "name": "L" } },
           { "id": "third",     "status": { "utcTime": "2026-09-30T15:00:00Z", "finished": false, "cancelled": false },
-            "home": { "id": "9906", "name": "A" }, "away": { "id": "4", "name": "D" }, "opponent": { "name": "D" }, "tournament": { "name": "L" } },
+            "home": { "id": "9825", "name": "A" }, "away": { "id": "4", "name": "D" }, "opponent": { "name": "D" }, "tournament": { "name": "L" } },
           { "id": "first",     "status": { "utcTime": "2026-09-05T15:00:00Z", "finished": false, "cancelled": false },
-            "home": { "id": "9906", "name": "A" }, "away": { "id": "5", "name": "E" }, "opponent": { "name": "E" }, "tournament": { "name": "L" } },
+            "home": { "id": "9825", "name": "A" }, "away": { "id": "5", "name": "E" }, "opponent": { "name": "E" }, "tournament": { "name": "L" } },
           { "id": "broken",    "status": { "utcTime": "", "finished": false, "cancelled": false },
-            "home": { "id": "9906", "name": "A" }, "away": { "id": "6", "name": "F" }, "opponent": { "name": "F" }, "tournament": { "name": "L" } },
+            "home": { "id": "9825", "name": "A" }, "away": { "id": "6", "name": "F" }, "opponent": { "name": "F" }, "tournament": { "name": "L" } },
           { "id": "second",    "status": { "utcTime": "2026-09-20T15:00:00Z", "finished": false, "cancelled": false },
-            "home": { "id": "9906", "name": "A" }, "away": { "id": "7", "name": "G" }, "opponent": { "name": "G" }, "tournament": { "name": "L" } }
+            "home": { "id": "9825", "name": "A" }, "away": { "id": "7", "name": "G" }, "opponent": { "name": "G" }, "tournament": { "name": "L" } }
         ]
     """
 
@@ -181,7 +165,7 @@ class MatchScraperParsingTest {
     fun testSelectUpcomingOrdersAndFilters() {
         val now = Instant.parse("2026-08-26T00:00:00Z")
 
-        val result = selectUpcoming(json(fixtures), now, limit = 3)
+        val result = selectUpcoming(json(fixtures), now, limit = 3, teamId = ARSENAL)
 
         // 배열 순서가 아니라 킥오프 순이어야 한다 — 응답이 정렬돼 온다는 보장이 없다
         assertEquals(listOf("E", "G", "D"), result.map { it.opponent })
@@ -190,7 +174,7 @@ class MatchScraperParsingTest {
     @Test
     @DisplayName("킥오프를 못 읽은 경기는 목록에서 빠진다")
     fun testSelectUpcomingDropsUnparsable() {
-        val result = selectUpcoming(json(fixtures), Instant.parse("2026-08-26T00:00:00Z"), limit = 10)
+        val result = selectUpcoming(json(fixtures), Instant.parse("2026-08-26T00:00:00Z"), limit = 10, teamId = ARSENAL)
         // 방 오픈 시각을 계산할 수 없어 채팅방을 못 여는 경기다
         assertTrue(result.none { it.opponent == "F" })
         assertEquals(3, result.size, "유효한 예정 경기는 셋뿐이다")
@@ -199,50 +183,36 @@ class MatchScraperParsingTest {
     @Test
     @DisplayName("limit만큼만 준다")
     fun testSelectUpcomingRespectsLimit() {
-        val result = selectUpcoming(json(fixtures), Instant.parse("2026-08-26T00:00:00Z"), limit = 1)
+        val result = selectUpcoming(json(fixtures), Instant.parse("2026-08-26T00:00:00Z"), limit = 1, teamId = ARSENAL)
         assertEquals(listOf("E"), result.map { it.opponent })
     }
 
-    // ── 최근 경기 ────────────────────────────────────────────────────────
+    // ── 직전 경기 ────────────────────────────────────────────────────────
+
+    // FotMob 팀 페이지 overview.lastMatch 모양 (2026-11 실제 응답에서 필요한 칸만)
+    private val lastMatchNode = """
+        {
+          "id": 5795505,
+          "home": { "id": 9825, "name": "Arsenal", "score": 1 },
+          "away": { "id": 8667, "name": "Hull", "score": 0 },
+          "tournament": { "name": "Premier League" },
+          "status": { "utcTime": "2026-11-07T15:00:00.000Z", "finished": true }
+        }
+    """
 
     @Test
-    @DisplayName("최근 경기를 KST 시각으로 바꿔 담는다")
+    @DisplayName("직전 경기를 KST 시각과 양 팀 ID로 담는다")
     fun testParseLastMatch() {
-        val node = json(
-            """
-            {
-              "id": "5868022",
-              "home": { "name": "Atletico Madrid", "score": 2 },
-              "away": { "name": "Villarreal", "score": 2 },
-              "tournament": { "name": "LaLiga" },
-              "status": { "utcTime": "2026-08-23T15:00:00Z" }
-            }
-            """
-        )
+        val result = parseLastMatch(json(lastMatchNode), mapOf("playerOfTheMatch" to "Martin Ødegaard"), teamId = ARSENAL)
 
-        val result = parseLastMatch(node, mapOf("xg" to "{}", "possession" to "55"))
-
-        assertEquals("5868022", result.matchId)
-        assertEquals(2, result.homeScore)
-        assertEquals(2, result.awayScore)
-        assertTrue(result.isHome, "홈팀 이름이 Atletico면 홈 경기다")
-        assertEquals("2026-08-24T00:00:00+09:00", result.matchDate)
-        assertEquals("55", result.possession)
-    }
-
-    @Test
-    @DisplayName("악센트가 붙은 Atlético도 홈으로 읽는다")
-    fun testParseLastMatchAccentedName() {
-        val node = json(
-            """
-            {
-              "id": "1", "home": { "name": "Atlético de Madrid", "score": 1 },
-              "away": { "name": "Sevilla", "score": 0 },
-              "tournament": { "name": "LaLiga" }, "status": { "utcTime": "2026-08-30T19:00:00Z" }
-            }
-            """
-        )
-        assertTrue(parseLastMatch(node, emptyMap()).isHome)
+        assertEquals("5795505", result.matchId)
+        assertEquals(1, result.homeScore)
+        assertEquals(0, result.awayScore)
+        assertEquals("9825", result.homeTeamId)
+        assertEquals("8667", result.awayTeamId)
+        assertTrue(result.isHome, "홈팀 ID가 아스날이면 홈 경기다")
+        assertEquals("2026-11-08T00:00:00+09:00", result.matchDate)
+        assertEquals("Martin Ødegaard", result.playerOfTheMatch)
     }
 
     @Test
@@ -251,11 +221,91 @@ class MatchScraperParsingTest {
         val node = json(
             """
             {
-              "id": "1", "home": { "name": "Atletico", "score": 0 }, "away": { "name": "X", "score": 0 },
+              "id": "1", "home": { "id": "9825", "name": "Arsenal", "score": 0 }, "away": { "id": "2", "name": "X", "score": 0 },
               "tournament": { "name": "L" }, "status": { "utcTime": "곧" }
             }
             """
         )
-        assertEquals("곧", parseLastMatch(node, emptyMap()).matchDate)
+        assertEquals("곧", parseLastMatch(node, emptyMap(), ARSENAL).matchDate)
+    }
+
+    // ── 경기 상세 ────────────────────────────────────────────────────────
+
+    // FotMob 경기 페이지 pageProps.content 모양 (필요한 칸만)
+    private val matchContent = """
+        {
+          "lineup": {
+            "homeTeam": {
+              "formation": "4-3-3",
+              "starters": [
+                { "id": 1, "name": "David Raya", "shirtNumber": "1", "performance": { "rating": 8.2 } },
+                { "id": 2, "name": "Martin Ødegaard", "shirtNumber": "8", "performance": { "rating": 8.5 } }
+              ],
+              "subs": [
+                { "id": 3, "name": "Mikel Merino", "shirtNumber": "23", "performance": { "rating": 6.9 } },
+                { "id": 4, "name": "Unused Keeper", "shirtNumber": "32", "performance": {} },
+                { "id": 6, "name": "Late Sub", "shirtNumber": "36", "performance": { "substitutionEvents": [ { "time": 89, "type": "subIn" } ] } }
+              ]
+            },
+            "awayTeam": {
+              "formation": "5-4-1",
+              "starters": [ { "id": 5, "name": "Hull Keeper", "shirtNumber": "1", "performance": { "rating": 7.1 } } ],
+              "subs": []
+            }
+          },
+          "stats": { "Periods": { "All": { "stats": [
+            { "title": "Top stats", "stats": [
+              { "title": "Ball possession", "stats": [62, 38] },
+              { "title": "Expected goals (xG)", "stats": ["1.84", "0.31"] },
+              { "title": "Keeper saves", "stats": [1, 4] }
+            ]},
+            { "title": "Expected goals (xG)", "stats": [
+              { "title": "Expected goals (xG)", "stats": [null, null] },
+              { "title": "Expected goals (xG)", "stats": ["9.99", "9.99"] }
+            ]}
+          ]}}},
+          "matchFacts": {
+            "playerOfTheMatch": { "name": { "fullName": "Martin Ødegaard" } },
+            "events": { "events": [
+              { "type": "Goal", "time": 72, "player": { "name": "Martin Ødegaard" }, "isHome": true },
+              { "type": "Card", "time": 80, "card": "YellowRed", "player": { "name": "Hull Defender" }, "isHome": false },
+              { "type": "Card", "time": 30, "card": "Yellow", "player": { "name": "David Raya" }, "isHome": true }
+            ]}
+          }
+        }
+    """
+
+    @Test
+    @DisplayName("통계는 프론트 표시 키로, 같은 지표가 반복되면 처음 값만 담는다")
+    fun testParseMatchStatsKeys() {
+        val stats = parseMatchStats(json(matchContent), mapper)
+        val parsed: Map<String, Map<String, String>> = mapper.readValue(stats["xg"]!!)
+
+        assertEquals("62", parsed["Possession"]?.get("home"))
+        assertEquals("1.84", parsed["Expected Goals"]?.get("home"), "xG 그룹의 머리글·중복 행이 덮어쓰면 안 된다")
+        assertEquals("4", parsed["Saves"]?.get("away"))
+    }
+
+    @Test
+    @DisplayName("FotMob 선수 평점: 양 팀 선발 + 들어간 교체 선수(막판 투입은 평점 없이), 안 뛴 교체는 뺀다")
+    fun testParsePlayerRatings() {
+        val stats = parseMatchStats(json(matchContent), mapper)
+        val ratings: List<FotmobPlayerRating> = mapper.readValue(stats["playerRatings"]!!)
+
+        assertEquals(listOf("David Raya", "Martin Ødegaard", "Mikel Merino", "Late Sub", "Hull Keeper"), ratings.map { it.name })
+        assertNull(ratings.first { it.name == "Late Sub" }.rating)
+        assertEquals("36", ratings.first { it.name == "Late Sub" }.shirt)
+        assertEquals(8.5, ratings.first { it.name == "Martin Ødegaard" }.rating)
+        assertEquals(false, ratings.first { it.name == "Mikel Merino" }.starter)
+        assertEquals(false, ratings.first { it.name == "Hull Keeper" }.isHome)
+        assertEquals("Martin Ødegaard", stats["playerOfTheMatch"])
+    }
+
+    @Test
+    @DisplayName("경고 누적 퇴장(YellowRed)은 레드로 친다")
+    fun testSecondYellowIsRed() {
+        val cards: List<Map<String, Any?>> = mapper.readValue(parseMatchStats(json(matchContent), mapper)["cards"]!!)
+        assertEquals("R", cards.first { it["name"] == "Hull Defender" }["color"])
+        assertEquals("Y", cards.first { it["name"] == "David Raya" }["color"])
     }
 }

@@ -3,8 +3,8 @@ package com.atleti.news.match.external
 /**
  * FotMob 대회명(영문) → 한글 통용 표기.
  *
- * FotMob은 일정 노드에서 시즌 접미사 없는 순수 대회명을 준다 ("LaLiga", "Champions League").
- * 다만 다른 노드에는 "LaLiga 2025/2026" 형태도 있어, 접미사가 붙어 와도 벗겨내고 찾는다.
+ * FotMob은 일정 노드에서 시즌 접미사 없는 순수 대회명을 준다 ("Premier League", "Champions League").
+ * 다만 다른 노드에는 "Premier League 2025/2026" 형태도 있어, 접미사가 붙어 와도 벗겨내고 찾는다.
  *
  * 매핑에 없는 대회는 영문을 그대로 돌려준다. 새 대회가 생기거나 FotMob이 표기를 바꿔도
  * 화면이 빈칸이 되지는 않는다.
@@ -16,6 +16,13 @@ object TournamentNameKo {
     private val SEASON_SUFFIX = Regex("""\s+\d{4}(/\d{2,4})?$""")
 
     private val MAP = mapOf(
+        "premier league" to "프리미어리그",
+        "fa cup" to "FA컵",
+        "efl cup" to "리그컵",
+        "carabao cup" to "리그컵",
+        "league cup" to "리그컵",
+        "community shield" to "커뮤니티 실드",
+        "fa community shield" to "커뮤니티 실드",
         "laliga" to "라리가",
         "la liga" to "라리가",
         "champions league" to "챔피언스리그",

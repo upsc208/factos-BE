@@ -1,6 +1,7 @@
 package com.atleti.news.news.external
 
 import org.slf4j.LoggerFactory
+import com.atleti.news.news.domain.Club
 import com.fasterxml.jackson.annotation.JsonProperty
 import com.fasterxml.jackson.databind.ObjectMapper
 import com.fasterxml.jackson.module.kotlin.readValue
@@ -289,7 +290,11 @@ class GeminiService(
         private const val MAX_CHARS = 1300
     }
 
-    suspend fun generateHeadlines(newsLines: List<String>, existingHeadlines: List<String>): List<String>? {
+    /**
+     * 팀 브리핑 한 줄짜리 헤드라인. [team] 기사에서 중요한 것만 0~4개 (0개도 괜찮다 — 채우려고 지어내지 않는다).
+     * 이적시장 밖에서는 이적설보다 경기·부상·감독 발언이 중요해서, 이적을 무조건 앞세우지 않는다.
+     */
+    suspend fun generateHeadlines(newsLines: List<String>, existingHeadlines: List<String>, team: Club): List<String>? {
         if (apiKey == "NO_KEY" || apiKey.isBlank()) {
             log.warn("⚠️ GEMINI_API_KEY가 설정되지 않았습니다.")
             return null
@@ -298,29 +303,30 @@ class GeminiService(
 
         val newsBlock = newsLines.joinToString("\n")
         val existingBlock = if (existingHeadlines.isEmpty()) "(none)" else existingHeadlines.joinToString("\n")
+        val teamEn = team.englishName
+        val teamKo = team.nameKo
 
         val prompt = """
-            You are the front-page editor for an Atletico Madrid news feed.
-            Below are the LATEST news items collected since the previous briefing.
+            You are the front-page editor for a $teamEn ($teamKo) news feed for Korean fans of the Premier League.
+            Below are the LATEST news items about $teamEn collected since the previous briefing.
             From them, select the MOST IMPORTANT stories and write AT MOST 4 short Korean headlines (fewer is fine).
 
             RULES:
-            1. These headlines are a live "breaking news" ticker. Cover only the most important / newest developments — ignore minor or repetitive items.
-            2. If nothing is genuinely important or newsworthy, return an EMPTY list. Do NOT invent or pad headlines just to fill space. It is perfectly fine to return zero headlines. Only include an item if it is genuinely worth a headline — do not add weak items just to reach 4.
+            1. These headlines are a live "breaking news" ticker. Cover only the most important / newest developments about $teamEn — ignore minor or repetitive items, and items that are mainly about other clubs.
+            2. If nothing is genuinely important or newsworthy, return an EMPTY list. Do NOT invent or pad headlines just to fill space. It is perfectly fine to return zero headlines.
             3. Return between 0 and 4 headlines, chosen strictly by importance. List the MOST important first.
-            4. [Importance priority] Atletico fans care most about TRANSFERS. Rank items in this priority order:
-               (a) Confirmed official signings or departures (영입/방출 오피셜, 공식발표).
-               (b) Transfer news or rumors (이적설), especially when reported by a well-known, credible journalist/outlet (e.g., Fabrizio Romano, Marca, AS). Weigh the [출처] when judging credibility.
-               (c) Other major club news (injuries, lineups, match results, interviews).
-               Prefer transfer-related items over non-transfer items when choosing what to include.
-            5. Each headline: informative Korean newspaper style, target 30-50 characters (max 50). Long enough to carry WHO + WHAT with a concrete detail (club, fee, source, status). Avoid one-word or overly terse headlines. NO ending punctuation.
-            6. Use plain style endings (평어체) or noun-ending style, and include a concrete detail. e.g., "훌리안 알바레스, 사우디 클럽의 대형 이적 제안 공개 거부", "시메오네 감독, 2028년까지 재계약 최종 합의 임박".
+            4. [Importance priority] Rank items in this order:
+               (a) Official club announcements (signings/departures made official, contracts, manager changes).
+               (b) Match results and decisive performances, injuries and team news affecting upcoming matches.
+               (c) Manager or key player quotes, and transfer news or rumors reported by a credible journalist/outlet (e.g., BBC Sport, Sky Sports, David Ornstein, Fabrizio Romano). Weigh the [출처] when judging credibility.
+            5. Each headline: informative Korean newspaper style, target 30-50 characters (max 50). Long enough to carry WHO + WHAT with a concrete detail (opponent, score, injury length, source, status). Avoid one-word or overly terse headlines. NO ending punctuation.
+            6. Use plain style endings (평어체) or noun-ending style. Write player and club names the way Korean football media usually do. e.g., "$teamKo, 리그 3연승으로 4위 도약", "주전 수비수 햄스트링 부상, 3주 결장 예상".
             7. DO NOT repeat or paraphrase any of the [Already Posted Headlines]. Produce genuinely new angles only.
 
             [Strict Grounding - MOST IMPORTANT]
             8. You are RE-HEADLINING existing news items, NOT writing new stories. Every headline MUST be directly and fully supported by ONE specific item in [Latest News].
             9. Do NOT change the factual meaning of an item. Never turn a goal, injury, quote, or match report into a transfer/signing story (or vice versa).
-            10. NEVER use outside or background knowledge. Do NOT assume who currently plays for which club, who is a transfer target, or any squad detail not stated in the item itself. Example of a FORBIDDEN hallucination: an item mentions a CURRENT Atletico player, and you invent that Atletico is "trying to sign him" — that is completely wrong. Only restate what the item actually says.
+            10. NEVER use outside or background knowledge. Do NOT assume who currently plays for which club, who is a transfer target, or any squad detail not stated in the item itself. Example of a FORBIDDEN hallucination: an item mentions a CURRENT $teamEn player, and you invent that $teamEn is "trying to sign him" — that is completely wrong. Only restate what the item actually says.
             11. Do NOT merge multiple items into a single fabricated narrative. One headline reflects one item's actual content.
             12. If you cannot write a headline that faithfully matches an item, DROP it. Fewer (or zero) accurate headlines is always better than one distorted or invented one.
 

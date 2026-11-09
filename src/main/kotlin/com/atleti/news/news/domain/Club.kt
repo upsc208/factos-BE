@@ -11,13 +11,16 @@ package com.atleti.news.news.domain
  * [fotmobTeamId]는 경기 일정(채팅 매치 방)용. factos 1기 DataInitializer의 값이다.
  * FotMob 팀 페이지 주소의 마지막 조각은 아무 값이어도 ID로 찾아가지만, 읽기 좋게 bbcSlug를 쓴다.
  */
-enum class Club(val id: String, val bbcSlug: String, val skyFeedId: Int, val fotmobTeamId: String, val nameKo: String) {
-    ARSENAL("arsenal", "arsenal", 11670, "9825", "아스날"),
-    CHELSEA("chelsea", "chelsea", 11668, "8455", "첼시"),
-    LIVERPOOL("liverpool", "liverpool", 11669, "8650", "리버풀"),
-    MAN_CITY("mancity", "manchester-city", 11679, "8456", "맨시티"),
-    MAN_UTD("manutd", "manchester-united", 11667, "10260", "맨유"),
-    TOTTENHAM("tottenham", "tottenham-hotspur", 11675, "8586", "토트넘");
+enum class Club(
+    val id: String, val bbcSlug: String, val skyFeedId: Int, val fotmobTeamId: String, val nameKo: String,
+    val englishName: String, // 브리핑 프롬프트용
+) {
+    ARSENAL("arsenal", "arsenal", 11670, "9825", "아스날", "Arsenal"),
+    CHELSEA("chelsea", "chelsea", 11668, "8455", "첼시", "Chelsea"),
+    LIVERPOOL("liverpool", "liverpool", 11669, "8650", "리버풀", "Liverpool"),
+    MAN_CITY("mancity", "manchester-city", 11679, "8456", "맨시티", "Manchester City"),
+    MAN_UTD("manutd", "manchester-united", 11667, "10260", "맨유", "Manchester United"),
+    TOTTENHAM("tottenham", "tottenham-hotspur", 11675, "8586", "토트넘", "Tottenham Hotspur");
 
     companion object {
         fun fromId(id: String): Club? = entries.find { it.id == id }

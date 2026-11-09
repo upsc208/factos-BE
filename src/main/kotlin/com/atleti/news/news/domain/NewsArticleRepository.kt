@@ -94,14 +94,16 @@ interface NewsArticleRepository : JpaRepository<NewsArticle, Long> {
         pageable: Pageable
     ): Page<NewsArticle>
 
-    // 헤드라인 브리핑용: 커서(직전 생성 시각) 이후 수집된 ATM 관련 기사만 최신순으로
+    // 팀 브리핑용: 커서(직전 생성 시각) 이후 들어와 번역까지 끝난 그 팀 기사·트윗, 최신순
     @Query("""
-        SELECT n FROM NewsArticle n
-        WHERE n.createdAt >= :since
-          AND n.isAtmRelated = true
+        SELECT n FROM NewsArticle n JOIN n.clubs c
+        WHERE c = :club
+          AND n.createdAt >= :since
+          AND n.translationStatus = com.atleti.news.news.domain.TranslationStatus.DONE
         ORDER BY n.createdAt DESC
     """)
-    fun findRecentForBriefing(
+    fun findRecentTranslatedForClub(
+        @Param("club") club: Club,
         @Param("since") since: java.time.OffsetDateTime,
         pageable: Pageable
     ): List<NewsArticle>

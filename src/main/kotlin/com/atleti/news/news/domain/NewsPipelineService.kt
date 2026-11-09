@@ -22,7 +22,6 @@ class NewsPipelineService(
     private val nitterScraperService: NitterScraperService,
     private val geminiService: GeminiService,
     private val youtubeService: YoutubeService,
-    private val headlineService: HeadlineService,
     private val newsArticleRepository: NewsArticleRepository,
     private val articleDeletionService: ArticleDeletionService,
     private val newsSourceRepository: NewsSourceRepository,
@@ -32,7 +31,6 @@ class NewsPipelineService(
     @org.springframework.beans.factory.annotation.Value("\${atleti.news.enabled.news}") private val isNewsEnabled: Boolean,
     @org.springframework.beans.factory.annotation.Value("\${atleti.news.enabled.gemini}") private val isGeminiEnabled: Boolean,
     @org.springframework.beans.factory.annotation.Value("\${atleti.news.enabled.youtube}") private val isYoutubeEnabled: Boolean,
-    @org.springframework.beans.factory.annotation.Value("\${atleti.news.enabled.headline}") private val isHeadlineEnabled: Boolean,
     @org.springframework.beans.factory.annotation.Value("\${rapidapi.daily.limit}") private val twitterDailyLimit: Int,
     // factos 전환 후 기본 false. Big6 수집은 ClubNewsPipeline이 한다
     @org.springframework.beans.factory.annotation.Value("\${atleti.news.enabled.legacy}") private val isLegacyEnabled: Boolean,
@@ -67,13 +65,7 @@ class NewsPipelineService(
         youtubeService.runYoutubePipeline("@rubenuriagonzalez")
     }
 
-    // 헤드라인 브리핑: 6시간마다 최신 뉴스를 종합해 헤드라인 1~2개 생성 (최신 5개 롤링 유지)
-    @Scheduled(cron = "0 30 0/6 * * *")
-    fun scheduledHeadlinePipeline() = runBlocking {
-        if (!isLegacyEnabled || !isHeadlineEnabled) return@runBlocking
-        log.info("📰 헤드라인 파이프라인 시작...")
-        headlineService.generateAndStore()
-    }
+    // 헤드라인 브리핑은 팀별로 바뀌어 HeadlineService가 직접 돈다
 
     // 조회 로그 청소 배치는 Redis 전환으로 제거됨 — 중복 방지 마커가 TTL 24h로 자동 소멸
 
