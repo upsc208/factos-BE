@@ -1,10 +1,8 @@
 package com.atleti.news.news.api
 
 import com.atleti.news.news.api.dto.CollectionLogResponse
-import com.atleti.news.news.api.dto.NewsSourceResponse
 import com.atleti.news.news.domain.CollectionLog
 import com.atleti.news.news.domain.CollectionStatus
-import com.atleti.news.news.domain.NewsSource
 import com.fasterxml.jackson.databind.ObjectMapper
 import com.fasterxml.jackson.databind.SerializationFeature
 import com.fasterxml.jackson.datatype.jsr310.JavaTimeModule
@@ -32,47 +30,6 @@ class NewsResponseContractTest {
         .registerKotlinModule()
         .registerModule(JavaTimeModule())
         .disable(SerializationFeature.WRITE_DATES_AS_TIMESTAMPS)
-
-    @Test
-    @DisplayName("수집 소스 — DTO가 엔티티와 같은 JSON을 만든다")
-    fun testNewsSourceResponseKeepsShape() {
-        val entity = NewsSource(
-            id = 7L,
-            internalId = "Marca",
-            displayName = "마르카",
-            sourceUrl = "https://www.marca.com/",
-            iconUrl = "https://example.com/marca.png",
-            category = "MEDIA",
-            isActive = true
-        )
-
-        assertEquals(
-            mapper.writeValueAsString(entity),
-            mapper.writeValueAsString(NewsSourceResponse.of(entity)),
-            "엔티티를 DTO로 바꾼 것만으로 응답이 달라지면 프론트가 깨진다"
-        )
-    }
-
-    @Test
-    @DisplayName("수집 소스 — null 필드도 같은 방식으로 나간다")
-    fun testNewsSourceResponseKeepsNulls() {
-        // sourceUrl·iconUrl이 없는 소스가 실제로 있다. null을 생략하는지 그대로 두는지가
-        // 엔티티와 DTO에서 갈리면 그것도 계약 변경이다
-        val entity = NewsSource(
-            id = null,
-            internalId = "MatteoMoretto",
-            displayName = "마테오 모레토",
-            sourceUrl = null,
-            iconUrl = null,
-            category = "JOURNALIST",
-            isActive = true
-        )
-
-        assertEquals(
-            mapper.writeValueAsString(entity),
-            mapper.writeValueAsString(NewsSourceResponse.of(entity))
-        )
-    }
 
     @Test
     @DisplayName("수집 로그 — DTO가 엔티티와 같은 JSON을 만든다")

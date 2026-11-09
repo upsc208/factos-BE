@@ -27,8 +27,8 @@ class NaverSportsClientTest {
               "gameDateTime": "2026-08-15T00:30:00",
               "categoryName": "클럽 프렌들리",
               "stadium": "스타드 벨로드롬",
-              "homeTeamName": "마르세유",  "homeTeamScore": 0,
-              "awayTeamName": "AT 마드리드", "awayTeamScore": 1,
+              "homeTeamCode": "26300", "homeTeamName": "마르세유",  "homeTeamScore": 0,
+              "awayTeamCode": "1006", "awayTeamName": "AT 마드리드", "awayTeamScore": 1,
               "statusCode": "RESULT",
               "statusInfo": "경기종료",
               "scorers": {
@@ -162,14 +162,29 @@ class NaverSportsClientTest {
     }
 
     @Test
-    fun `아틀레티 경기인지 팀명으로 판별한다`() {
-        assertTrue(client.parseGame(marseilleResponse).involvesAtleti)
+    fun `우리 팀 경기인지 팀 코드로 판별한다`() {
+        val game = client.parseGame(marseilleResponse)
+        assertEquals("1006", game.awayTeamCode)
+        assertTrue(game.involvesAny(setOf("1006", "4")))
+        assertFalse(game.involvesAny(setOf("4", "9")))
+    }
 
-        val other = client.parseGame(
-            marseilleResponse
-                .replace("\"AT 마드리드\"", "\"레알 마드리드\"")
-        )
-        assertFalse(other.involvesAtleti)
+    @Test
+    fun `월 일정 목록에서 우리 팀 경기만 킥오프 순으로 추린다`() {
+        val body = """
+            {"code":200,"success":true,"result":{"games":[
+              {"gameId":"b","categoryId":"champs","categoryName":"챔피언스리그","gameDateTime":"2026-11-25T05:00:00","homeTeamCode":"1006","homeTeamName":"아스널","homeTeamScore":0,"awayTeamCode":"26261","awayTeamName":"도르트문트","awayTeamScore":0,"statusCode":"BEFORE","statusInfo":"경기전"},
+              {"gameId":"x","categoryId":"bundesliga","gameDateTime":"2026-11-01T23:30:00","homeTeamCode":"2547","homeTeamName":"우니온 베를린","awayTeamCode":"NukIPN","awayTeamName":"쾰른","statusCode":"RESULT","statusInfo":"경기종료"},
+              {"gameId":"a","categoryId":"epl","categoryName":"프리미어리그","gameDateTime":"2026-11-08T23:00:00","homeTeamCode":"TTwjJb","homeTeamName":"선덜랜드","homeTeamScore":1,"awayTeamCode":"4","awayTeamName":"첼시","awayTeamScore":2,"statusCode":"RESULT","statusInfo":"경기종료"}
+            ]}}
+        """.trimIndent()
+
+        val games = client.parseGameList(body, setOf("1006", "4"))
+
+        assertEquals(listOf("a", "b"), games.map { it.gameId })
+        assertEquals("첼시", games[0].awayTeamName)
+        assertEquals(java.time.OffsetDateTime.parse("2026-11-25T05:00:00+09:00"), games[1].kickoff)
+        assertTrue(games.all { it.scorers.isEmpty() }) // 목록에는 득점자가 없다 — 득점은 경기 상세로 본다
     }
 
     @Test

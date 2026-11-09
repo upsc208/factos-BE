@@ -25,7 +25,9 @@ class LiveMatchFeedTest {
         gameId: String,
         kickoff: String?,
         statusCode: String = "BEFORE",
-        statusInfo: String = "경기전"
+        statusInfo: String = "경기전",
+        homeCode: String = "",
+        awayCode: String = "",
     ) = NaverGame(
         gameId = gameId,
         kickoff = kickoff?.let { OffsetDateTime.parse(it) },
@@ -37,7 +39,9 @@ class LiveMatchFeedTest {
         awayScore = 0,
         statusCode = statusCode,
         statusInfo = statusInfo,
-        scorers = emptyList()
+        scorers = emptyList(),
+        homeTeamCode = homeCode,
+        awayTeamCode = awayCode,
     )
 
     // ── 매핑 (설계 7장) ───────────────────────────────────────────────────
@@ -53,6 +57,21 @@ class LiveMatchFeedTest {
 
         val paired = LiveMatchMapper.pairByKickoff(OffsetDateTime.parse("2026-08-20T04:00:00+09:00"), games)
         assertEquals("Z5BQDTTiMjv6iBO", paired?.gameId)
+    }
+
+    @Test
+    @DisplayName("같은 시각 킥오프가 여럿이면 우리 팀 코드로 고른다")
+    fun testPairByTeamCodeAtSameKickoff() {
+        // 토요일 00:00 KST에 아스널(1006)·첼시(4)가 동시에 뛴다. 시각만 보면 다른 방에 골이 간다
+        val games = listOf(
+            game("arsenal-game", "2026-11-22T00:00:00+09:00", homeCode = "1006", awayCode = "Y8fTUn"),
+            game("chelsea-game", "2026-11-22T00:00:00+09:00", homeCode = "4", awayCode = "Sa0VaD"),
+        )
+        val kickoff = OffsetDateTime.parse("2026-11-22T00:00:00+09:00")
+
+        assertEquals("chelsea-game", LiveMatchMapper.pairByKickoff(kickoff, games, setOf("4"))?.gameId)
+        assertEquals("arsenal-game", LiveMatchMapper.pairByKickoff(kickoff, games, setOf("1006"))?.gameId)
+        assertNull(LiveMatchMapper.pairByKickoff(kickoff, games, setOf("9")))
     }
 
     @Test

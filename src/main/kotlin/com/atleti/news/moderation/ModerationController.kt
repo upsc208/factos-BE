@@ -54,14 +54,24 @@ data class SuspensionResponse(
  * 회원 관리자(팀 관리자·전체 관리자)용 API. 로그인 쿠키로 동작하고, 권한은 [ModerationService]가 본다.
  * 운영자용 `/api/admin 아래`(관리자 토큰)과는 별개다.
  */
-@Tag(name = "Moderation API", description = "관리자: 댓글 삭제, 임시 정지, 정지 목록")
+@Tag(name = "Moderation API", description = "관리자: 신고 목록, 댓글 삭제, 임시 정지, 정지 목록")
 @RestController
 @RequestMapping("/api/moderation")
 class ModerationController(
     private val moderation: ModerationService,
     private val suspensions: SuspensionRepository,
     private val memberAuth: MemberAuth,
+    private val reports: ReportService,
 ) {
+    @Operation(summary = "신고된 댓글 목록 (관리자)", description = "처리 안 된 신고를 댓글별로 모아 신고 많은 순. 팀 관리자는 자기 팀 기사 댓글만")
+    @GetMapping("/reports")
+    fun reports(request: HttpServletRequest): List<ReportedComment> = reports.openReports(memberAuth.require(request))
+
+    @Operation(summary = "신고 기각 (관리자)", description = "문제없는 댓글: 열린 신고만 닫고 댓글은 남긴다")
+    @PostMapping("/reports/{commentId}/dismiss")
+    fun dismiss(@PathVariable commentId: Long, request: HttpServletRequest): Map<String, Int> =
+        mapOf("closed" to reports.dismiss(memberAuth.require(request), commentId))
+
     @Operation(summary = "댓글 삭제 (관리자)", description = "팀 관리자는 자기 팀 기사의 댓글만")
     @DeleteMapping("/comments/{commentId}")
     fun deleteComment(@PathVariable commentId: Long, request: HttpServletRequest): ResponseEntity<Void> {

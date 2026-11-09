@@ -137,3 +137,15 @@ class TwitterApiService(
         return articles
     }
 }
+
+/** 기자 트윗 한 건 (ClubNewsPipeline이 번역 대기열에 넣는다) */
+data class ScrapedArticle(
+    val title: String,
+    val url: String,
+    val imageUrl: String?,
+    val sourceName: String,
+    val articleType: com.atleti.news.news.domain.ArticleType,
+    val authorName: String?,
+    val publishedAt: java.time.OffsetDateTime = java.time.OffsetDateTime.now(java.time.ZoneId.of("Asia/Seoul")),
+    val isRetweet: Boolean = false
+)

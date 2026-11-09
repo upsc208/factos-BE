@@ -4,10 +4,6 @@ import com.fasterxml.jackson.databind.JsonNode
 import com.fasterxml.jackson.databind.ObjectMapper
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.TimeoutCancellationException
-import kotlinx.coroutines.async
-import kotlinx.coroutines.awaitAll
-import kotlinx.coroutines.coroutineScope
-import kotlinx.coroutines.delay
 import kotlinx.coroutines.withTimeout
 import org.springframework.beans.factory.annotation.Value
 import org.springframework.http.HttpHeaders
@@ -23,10 +19,6 @@ import com.atleti.news.live.domain.LiveGoal
 import com.atleti.news.live.domain.LiveSnapshot
 import com.atleti.news.live.domain.LiveSource
 
-/**
- * 네이버 표기. `"아틀레티코"`로 찾으면 안 잡힌다. (설계 3.3)
- */
-const val NAVER_ATLETI_NAME = "AT 마드리드"
 
 /** 네이버 스포츠 호출·파싱 실패. "골이 아직 없음"과 구분해야 해서 예외로 올린다. */
 open class NaverSportsException(message: String, cause: Throwable? = null) : RuntimeException(message, cause)
@@ -49,10 +41,12 @@ data class NaverGame(
     val statusCode: String,
     /** 예: `경기종료` — 화면 표시에 그대로 쓸 수 있는 한글 */
     val statusInfo: String,
-    val scorers: List<LiveGoal>
+    val scorers: List<LiveGoal>,
+    /** 네이버 팀 코드 (아스널 `1006` …). 이름은 대회마다 표기가 흔들려도 코드는 같다 */
+    val homeTeamCode: String = "",
+    val awayTeamCode: String = "",
 ) {
-    val involvesAtleti: Boolean
-        get() = homeTeamName.contains(NAVER_ATLETI_NAME) || awayTeamName.contains(NAVER_ATLETI_NAME)
+    fun involvesAny(teamCodes: Collection<String>): Boolean = homeTeamCode in teamCodes || awayTeamCode in teamCodes
 
     /** 폴러가 소스와 무관하게 다루는 형태로. 상태 문구는 네이버 한글을 그대로 쓴다 */
     fun toSnapshot() = LiveSnapshot(
@@ -91,6 +85,8 @@ class NaverSportsClient(
         .defaultHeader(HttpHeaders.USER_AGENT, USER_AGENT)
         // 이 헤더 하나가 인증 전부다. 빼면 막힌다.
         .defaultHeader(HttpHeaders.REFERER, "https://m.sports.naver.com/")
+        // 월 일정 목록이 450KB쯤이라 기본 상한(256KB)으로는 잘린다
+        .codecs { it.defaultCodecs().maxInMemorySize(4 * 1024 * 1024) }
         .build()
 
     /**
@@ -102,50 +98,18 @@ class NaverSportsClient(
     suspend fun fetchGame(gameId: String): NaverGame = parseGame(get("/schedule/games/$gameId"))
 
     /**
-     * 해당 월의 gameId 목록.
+     * 해당 월(KST) 해외축구 전체 일정에서 [teamCodes] 팀 경기만. matchId ↔ gameId 매핑의 재료다. (설계 7장)
      *
-     * 목록 엔드포인트(`schedule/games?...`)는 파라미터 조합을 못 찾아 400만 내므로
-     * 캘린더로 우회한다. (설계 3.3)
+     * 일정 목록 API 한 번이면 리그·컵·챔스가 다 온다 (`fields=basic`, 한 달 750경기쯤 · 득점자는 없음).
+     * 예전에는 캘린더에서 gameId만 받아 750개를 하나씩 열었다 — 캘린더는 categoryId를 무시한다.
      *
-     * @param yearMonth `2026-08` 형식
+     * @param yearMonth `2026-11` 형식
      */
-    suspend fun fetchMonthlyGameIds(
-        yearMonth: String,
-        categoryId: String = LALIGA_CATEGORY_ID
-    ): List<String> {
-        val path = "/schedule/calendar" +
-            "?upperCategoryId=$UPPER_CATEGORY_ID&categoryId=$categoryId&yearMonth=$yearMonth"
-        val dates = readTree(get(path), path).at("/result/dates")
-        if (!dates.isArray) throw NaverSportsException("result.dates 노드를 찾지 못했습니다 (yearMonth=$yearMonth)")
-
-        return dates.flatMap { date -> date.at("/gameIds").map { it.asText() } }
-            .filter { it.isNotBlank() }
-            .distinct()
-    }
-
-    /**
-     * 해당 월 아틀레티 경기를 킥오프 순으로 돌려준다. matchId ↔ gameId 매핑의 재료다. (설계 7장)
-     *
-     * 캘린더에는 팀명이 없어 gameId를 하나씩 열어봐야 한다. 하루 한 번 도는 경로라
-     * 이 비용은 감수하되, 1GB VM에서 비공식 API를 때리는 것이므로 한 번에 몰아치지는 않는다.
-     * 개별 경기 조회 실패는 건너뛴다 — 한 경기 때문에 매핑 전체를 잃을 이유가 없다.
-     */
-    suspend fun findAtletiGames(
-        yearMonth: String,
-        categoryId: String = LALIGA_CATEGORY_ID
-    ): List<NaverGame> {
-        val ids = fetchMonthlyGameIds(yearMonth, categoryId)
-        val found = mutableListOf<NaverGame>()
-
-        ids.chunked(DETAIL_CONCURRENCY).forEachIndexed { index, chunk ->
-            if (index > 0) delay(DETAIL_CHUNK_DELAY_MS)
-            val games = coroutineScope {
-                chunk.map { id -> async { runCatching { fetchGame(id) }.getOrNull() } }.awaitAll()
-            }
-            found += games.filterNotNull().filter { it.involvesAtleti }
-        }
-
-        return found.sortedBy { it.kickoff }
+    suspend fun findGames(yearMonth: String, teamCodes: Collection<String>): List<NaverGame> {
+        val month = java.time.YearMonth.parse(yearMonth)
+        val path = "/schedule/games?fields=basic&upperCategoryId=$UPPER_CATEGORY_ID" +
+            "&fromDate=${month.atDay(1)}&toDate=${month.atEndOfMonth()}&size=$LIST_SIZE"
+        return parseGameList(get(path, LIST_TIMEOUT_MS), teamCodes)
     }
 
     /**
@@ -156,7 +120,20 @@ class NaverSportsClient(
         if (game.isMissingNode || game.at("/gameId").asText().isBlank()) {
             throw NaverSportsException("result.game 노드를 찾지 못했습니다")
         }
+        return toGame(game)
+    }
 
+    /** 월 일정 목록 응답 → 그 가운데 [teamCodes] 팀이 뛰는 경기 (킥오프 순) */
+    fun parseGameList(body: String, teamCodes: Collection<String>): List<NaverGame> {
+        val games = readTree(body, "games").at("/result/games")
+        if (!games.isArray) throw NaverSportsException("result.games 노드를 찾지 못했습니다")
+        return games.filter { it.at("/gameId").asText().isNotBlank() }
+            .map(::toGame)
+            .filter { it.involvesAny(teamCodes) }
+            .sortedBy { it.kickoff }
+    }
+
+    private fun toGame(game: JsonNode): NaverGame {
         return NaverGame(
             gameId = game.at("/gameId").asText(),
             kickoff = parseKickoff(game.at("/gameDateTime").asText()),
@@ -168,7 +145,9 @@ class NaverSportsClient(
             awayScore = game.at("/awayTeamScore").asInt(),
             statusCode = game.at("/statusCode").asText(),
             statusInfo = game.at("/statusInfo").asText(),
-            scorers = parseScorers(game.at("/scorers"))
+            scorers = parseScorers(game.at("/scorers")),
+            homeTeamCode = game.at("/homeTeamCode").asText(),
+            awayTeamCode = game.at("/awayTeamCode").asText(),
         )
     }
 
@@ -203,14 +182,14 @@ class NaverSportsClient(
         runCatching { objectMapper.readTree(body) }
             .getOrElse { throw NaverSportsException("JSON 파싱 실패 ($what)", it) }
 
-    private suspend fun get(path: String): String =
+    private suspend fun get(path: String, timeoutMs: Long = REQUEST_TIMEOUT_MS): String =
         try {
             // 5초 폴링이므로 그보다 짧게 끊어야 다음 턴을 밀지 않는다
-            withTimeout(REQUEST_TIMEOUT_MS) {
+            withTimeout(timeoutMs) {
                 webClient.get().uri(path).retrieve().awaitBody<String>()
             }
         } catch (e: TimeoutCancellationException) {
-            throw NaverSportsException("응답 시간 초과 ${REQUEST_TIMEOUT_MS}ms ($path)", e)
+            throw NaverSportsException("응답 시간 초과 ${timeoutMs}ms ($path)", e)
         } catch (e: CancellationException) {
             throw e // 폴러 종료로 인한 취소는 장애가 아니다
         } catch (e: WebClientResponseException.TooManyRequests) {
@@ -228,12 +207,12 @@ class NaverSportsClient(
 
         private const val UPPER_CATEGORY_ID = "wfootball"
 
-        /** 라리가는 `primera`다. 프렌들리도 이 캘린더에 함께 잡힌다. (설계 3.3) */
-        const val LALIGA_CATEGORY_ID = "primera"
+        /** 한 달 해외축구 경기 수(2026-11 실측 752)보다 넉넉히. 1000을 넘기면 네이버가 몇 건만 준다 */
+        private const val LIST_SIZE = 1000
+        /** 월 일정은 하루 두 번(+매핑 실패 때) 부르는 큰 응답이라 5초 폴링용보다 길게 */
+        private const val LIST_TIMEOUT_MS = 10_000L
 
         private const val REQUEST_TIMEOUT_MS = 3_000L
-        private const val DETAIL_CONCURRENCY = 5
-        private const val DETAIL_CHUNK_DELAY_MS = 200L
 
         private val KST = ZoneId.of("Asia/Seoul")
 

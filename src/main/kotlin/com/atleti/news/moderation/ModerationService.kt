@@ -18,6 +18,7 @@ import java.time.format.DateTimeFormatter
 
 /**
  * 관리자 기능: 댓글 삭제, 댓글 작성자 임시 정지(사유 필수), 정지 해제.
+ * 댓글을 지우거나 작성자를 정지하면 그 댓글의 열린 신고([CommentReport])가 닫힌다.
  *
  * 범위: 전체 관리자(ADMIN)는 모든 기사, 팀 관리자(TEAM_ADMIN)는 **자기 팀이 걸린 기사**의 댓글만.
  * 여러 팀에 걸린 기사(같은 기사가 아스날·첼시 피드에 모두 나온 경우)는 두 팀 관리자 모두 다룰 수 있다.
@@ -28,6 +29,7 @@ class ModerationService(
     private val commentRepository: CommentRepository,
     private val memberRepository: MemberRepository,
     private val newsArticleRepository: NewsArticleRepository,
+    private val reportRepository: CommentReportRepository,
 ) {
     private val log = LoggerFactory.getLogger(javaClass)
 
@@ -57,6 +59,7 @@ class ModerationService(
     fun deleteComment(admin: Member, commentId: Long) {
         val comment = moderatableComment(admin, commentId)
         commentRepository.delete(comment)
+        reportRepository.closeOpen(commentId, ReportStatus.RESOLVED, admin.nickname, OffsetDateTime.now())
         log.info("🧹 [Moderation] 댓글 삭제 comment={} by={}", commentId, admin.id)
     }
 
@@ -93,6 +96,8 @@ class ModerationService(
             )
         )
         if (deleteComment) commentRepository.delete(comment)
+        // 신고된 댓글이면 정지로 처리된 것 (댓글을 남겨 둬도)
+        reportRepository.closeOpen(commentId, ReportStatus.RESOLVED, admin.nickname, OffsetDateTime.now())
         log.info("⛔ [Moderation] 정지 member={} days={} by={} comment={}", target.id, days, admin.id, commentId)
         return saved
     }

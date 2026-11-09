@@ -9,18 +9,20 @@ package com.atleti.news.news.domain
  * - Sky는 숫자 ID (`skysports.com/rss/{skyFeedId}`). 2026-11-05 피드 제목으로 하나씩 확인했다
  *
  * [fotmobTeamId]는 경기 일정(채팅 매치 방)용. factos 1기 DataInitializer의 값이다.
+ * [naverTeamCode]는 라이브 골 알림용 네이버 스포츠 팀 코드 — 리그·컵·챔스 모두 같은 값이다 (2026-11-09 일정 API로 확인)
  * FotMob 팀 페이지 주소의 마지막 조각은 아무 값이어도 ID로 찾아가지만, 읽기 좋게 bbcSlug를 쓴다.
  */
 enum class Club(
     val id: String, val bbcSlug: String, val skyFeedId: Int, val fotmobTeamId: String, val nameKo: String,
     val englishName: String, // 브리핑 프롬프트용
+    val naverTeamCode: String,
 ) {
-    ARSENAL("arsenal", "arsenal", 11670, "9825", "아스날", "Arsenal"),
-    CHELSEA("chelsea", "chelsea", 11668, "8455", "첼시", "Chelsea"),
-    LIVERPOOL("liverpool", "liverpool", 11669, "8650", "리버풀", "Liverpool"),
-    MAN_CITY("mancity", "manchester-city", 11679, "8456", "맨시티", "Manchester City"),
-    MAN_UTD("manutd", "manchester-united", 11667, "10260", "맨유", "Manchester United"),
-    TOTTENHAM("tottenham", "tottenham-hotspur", 11675, "8586", "토트넘", "Tottenham Hotspur");
+    ARSENAL("arsenal", "arsenal", 11670, "9825", "아스날", "Arsenal", "1006"),
+    CHELSEA("chelsea", "chelsea", 11668, "8455", "첼시", "Chelsea", "4"),
+    LIVERPOOL("liverpool", "liverpool", 11669, "8650", "리버풀", "Liverpool", "9"),
+    MAN_CITY("mancity", "manchester-city", 11679, "8456", "맨시티", "Manchester City", "11"),
+    MAN_UTD("manutd", "manchester-united", 11667, "10260", "맨유", "Manchester United", "12"),
+    TOTTENHAM("tottenham", "tottenham-hotspur", 11675, "8586", "토트넘", "Tottenham Hotspur", "19");
 
     companion object {
         fun fromId(id: String): Club? = entries.find { it.id == id }

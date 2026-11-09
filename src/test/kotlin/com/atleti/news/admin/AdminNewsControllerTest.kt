@@ -4,7 +4,6 @@ import com.atleti.news.news.domain.ArticleDeletionService
 import com.atleti.news.news.domain.ArticleType
 import com.atleti.news.news.domain.CollectionLogRepository
 import com.atleti.news.news.domain.NewsArticle
-import com.atleti.news.news.domain.NewsPipelineService
 import org.assertj.core.api.Assertions.assertThat
 import org.junit.jupiter.api.Test
 import org.mockito.Mockito.mock
@@ -15,8 +14,7 @@ class AdminNewsControllerTest {
 
     private val deletion = mock(ArticleDeletionService::class.java)
     private val collectionLogRepository = mock(CollectionLogRepository::class.java)
-    private val pipeline = mock(NewsPipelineService::class.java)
-    private val controller = AdminNewsController(deletion, collectionLogRepository, pipeline)
+    private val controller = AdminNewsController(deletion, collectionLogRepository)
 
     @Test
     fun `기사를 지운다`() {
@@ -35,26 +33,6 @@ class AdminNewsControllerTest {
         val response = controller.delete(1L)
 
         assertThat(response.statusCode.value()).isEqualTo(404)
-    }
-
-    @Test
-    fun `수집을 시작하면 기다리지 않고 202로 답한다`() {
-        `when`(pipeline.startPipeline()).thenReturn(true)
-
-        val response = controller.trigger()
-
-        assertThat(response.statusCode.value()).isEqualTo(202)
-        assertThat(response.body?.get("started")).isEqualTo(true)
-    }
-
-    @Test
-    fun `이미 돌고 있으면 새로 띄우지 않는다`() {
-        `when`(pipeline.startPipeline()).thenReturn(false)
-
-        val response = controller.trigger()
-
-        assertThat(response.statusCode.value()).isEqualTo(409)
-        assertThat(response.body?.get("started")).isEqualTo(false)
     }
 
     private fun article() = NewsArticle(

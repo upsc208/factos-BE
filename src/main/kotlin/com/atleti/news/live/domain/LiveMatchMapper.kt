@@ -18,16 +18,17 @@ import java.time.ZoneId
 import java.time.format.DateTimeFormatter
 import kotlin.math.abs
 import com.atleti.news.match.domain.MatchKickoff
+import com.atleti.news.news.domain.Club
 
 /**
  * FotMob matchId ↔ 네이버 gameId 매핑 (docs/live-match-feed-design.md 7장).
  *
  * 채팅방 키는 FotMob matchId인데 네이버 gameId는 `Z5BQDTTiMjv6iBO` 같은 불투명 문자열이라
- * 서로 무관하다. 둘을 잇는 유일한 실마리는 **킥오프 시각**이다.
+ * 서로 무관하다. **킥오프 시각 + 우리 팀 네이버 코드**([Club.naverTeamCode])로 잇는다.
  *
- * 팀 이름으로 잇지 않는 이유: 표기가 서로 다르고(`AT 마드리드` vs `Atletico Madrid`)
- * 상대팀까지 합치면 관리할 대응표가 계속 늘어난다. 시각 대조는 표가 필요 없고,
- * 아틀레티 경기가 30분 안에 두 개 있을 수 없어 애초에 충돌하지 않는다.
+ * 시각만으로는 안 된다: Big6는 같은 시각에 여러 팀이 뛴다 (토요일 00:00 KST에 아스널·첼시 동시 킥오프).
+ * 팀 이름 대신 코드를 쓰는 이유는 표기가 서로 달라서다 (`아스널` vs `Arsenal`, 네이버는 "아스날"도 아니다).
+ * 상대팀은 보지 않는다 — 우리 팀이 30분 안에 두 경기를 뛸 수는 없다.
  */
 @Service
 class LiveMatchMapper(
@@ -68,13 +69,14 @@ class LiveMatchMapper(
                 val kickoff = MatchKickoff.parse(entity.matchDate) ?: return@mapNotNull null
                 matchId to kickoff
             }
+            .distinctBy { it.first } // 맞대결은 두 팀 일정에 한 번씩 있다
             .filter { (matchId, kickoff) -> kickoff.isAfter(now) && !hasMapping(matchId) }
 
         if (targets.isEmpty()) return 0
 
         var created = 0
         for ((yearMonth, group) in targets.groupBy { (_, kickoff) -> yearMonth(kickoff) }) {
-            val scanned = runCatching { naverSportsClient.findAtletiGames(yearMonth) }
+            val scanned = runCatching { naverSportsClient.findGames(yearMonth, ALL_TEAM_CODES) }
             val games = scanned.getOrNull()
             if (games == null) {
                 // 이 달만 건너뛴다 — 다른 달 경기까지 함께 잃을 이유가 없다
@@ -101,7 +103,7 @@ class LiveMatchMapper(
         cached(matchId)?.let { return it }
         if (hasKey(LiveMatchKeys.mapMiss(matchId))) return null
 
-        val games = runCatching { naverSportsClient.findAtletiGames(yearMonth(kickoff)) }
+        val games = runCatching { naverSportsClient.findGames(yearMonth(kickoff), ALL_TEAM_CODES) }
             .getOrElse {
                 log.warn("⚠️ [Live] 네이버 일정 조회 실패 (matchId={}): {}", matchId, it.message)
                 markMiss(matchId)
@@ -111,10 +113,16 @@ class LiveMatchMapper(
     }
 
     private fun pairAndStore(matchId: String, kickoff: OffsetDateTime, games: List<NaverGame>): String? {
-        val paired = pairByKickoff(kickoff, games)
+        val codes = teamCodesOf(matchId)
+        if (codes.isEmpty()) {
+            log.warn("⚠️ [Live] matchId={}의 팀을 모릅니다 (upcoming_match.club 없음)", matchId)
+            markMiss(matchId)
+            return null
+        }
+        val paired = pairByKickoff(kickoff, games, codes)
 
         if (paired == null) {
-            log.warn("⚠️ [Live] 킥오프 {}에 맞는 네이버 경기를 찾지 못했습니다 (matchId={})", kickoff, matchId)
+            log.warn("⚠️ [Live] 킥오프 {}에 맞는 네이버 경기를 찾지 못했습니다 (matchId={}, 팀 코드={})", kickoff, matchId, codes)
             markMiss(matchId)
             return null
         }
@@ -127,6 +135,12 @@ class LiveMatchMapper(
         )
         return paired.gameId
     }
+
+    /** 이 경기를 뛰는 우리 팀들의 네이버 코드 (맞대결이면 둘) */
+    private fun teamCodesOf(matchId: String): Set<String> =
+        runCatching { upcomingMatchRepository.findAllByMatchIdIn(listOf(matchId)) }.getOrDefault(emptyList())
+            .mapNotNull { it.club?.let(Club::fromId)?.naverTeamCode }
+            .toSet()
 
     private fun cached(matchId: String): String? =
         runCatching { redis.opsForValue().get(LiveMatchKeys.map(matchId)) }.getOrNull()
@@ -151,16 +165,19 @@ class LiveMatchMapper(
         /** 중계 편성으로 킥오프가 몇 분 흔들려도 짝이 유지되도록 넉넉히 잡는다 (설계 7장) */
         private val KICKOFF_TOLERANCE: Duration = Duration.ofMinutes(30)
 
+        private val ALL_TEAM_CODES: Set<String> = Club.entries.mapTo(HashSet()) { it.naverTeamCode }
+
         private val KST = ZoneId.of("Asia/Seoul")
         private val YEAR_MONTH = DateTimeFormatter.ofPattern("yyyy-MM")
 
         /**
-         * 킥오프가 [KICKOFF_TOLERANCE] 안에서 **가장 가까운** 경기를 짝으로 본다.
-         * 후보가 여럿이어도 아틀레티 경기가 30분 간격으로 붙어 있을 수 없으므로,
-         * 가장 가까운 것 하나를 고르는 것으로 충분하다.
+         * [teamCodes] 팀이 뛰는 경기 가운데 킥오프가 [KICKOFF_TOLERANCE] 안에서 **가장 가까운** 것을 짝으로 본다.
+         * 한 팀이 30분 간격으로 두 경기를 뛸 수 없으므로 가장 가까운 것 하나로 충분하다.
+         * [teamCodes]가 비면 팀을 보지 않는다 (테스트용).
          */
-        internal fun pairByKickoff(kickoff: OffsetDateTime, games: List<NaverGame>): NaverGame? =
+        internal fun pairByKickoff(kickoff: OffsetDateTime, games: List<NaverGame>, teamCodes: Set<String> = emptySet()): NaverGame? =
             games
+                .filter { teamCodes.isEmpty() || it.involvesAny(teamCodes) }
                 .mapNotNull { game -> game.kickoff?.let { game to abs(Duration.between(it, kickoff).toMillis()) } }
                 .filter { (_, gap) -> gap <= KICKOFF_TOLERANCE.toMillis() }
                 .minByOrNull { (_, gap) -> gap }

@@ -8,6 +8,7 @@ import com.atleti.news.common.NotFoundException
 import com.atleti.news.member.auth.MemberAuth
 import com.atleti.news.member.domain.MemberRepository
 import com.atleti.news.moderation.ModerationService
+import com.atleti.news.moderation.ReportService
 import com.atleti.news.news.domain.NewsArticleRepository
 import io.swagger.v3.oas.annotations.Operation
 import io.swagger.v3.oas.annotations.tags.Tag
@@ -32,7 +33,11 @@ data class CommentResponse(
     val mine: Boolean, // 로그인한 본인 댓글이면 true — 프론트가 삭제 버튼을 띄운다
     val favoriteTeam: String? = null, // 작성자의 응원팀 ("arsenal" … "other"). 탈퇴했으면 null
     val moderatable: Boolean = false, // 지금 보는 사람이 이 댓글을 지우고 작성자를 정지할 수 있는 관리자인지
+    val reported: Boolean = false, // 지금 보는 사람이 이미 신고한 댓글인지
+    val reportCount: Int? = null, // 처리 안 된 신고 수 — 관리자(moderatable)에게만, 나머지는 null
 )
+
+data class ReportRequest(val reason: String?, val detail: String? = null)
 
 @Tag(name = "Comment API", description = "기사 댓글")
 @RestController
@@ -43,6 +48,7 @@ class CommentController(
     private val memberAuth: MemberAuth,
     private val slangFilter: SlangFilterService,
     private val moderation: ModerationService,
+    private val reports: ReportService,
 ) {
     @Operation(summary = "댓글 목록", description = "오래된 순. 비로그인도 볼 수 있다")
     @GetMapping("/api/news/{articleId}/comments")
@@ -61,6 +67,9 @@ class CommentController(
         )
         // 작성자를 한 번에 읽는다 (댓글마다 조회하지 않게)
         val members = memberRepository.findAllById(comments.content.map { it.memberId }.toSet()).associateBy { it.id }
+        val ids = comments.content.map { it.id!! }
+        val reportedByMe = reports.reportedBy(me, ids)
+        val openCounts = if (moderatable) reports.openCounts(ids) else emptyMap()
         return comments.map { c ->
             val author = members[c.memberId]
             CommentResponse(
@@ -72,6 +81,8 @@ class CommentController(
                 mine = c.memberId == me,
                 favoriteTeam = author?.favoriteTeam?.id,
                 moderatable = moderatable,
+                reported = c.id in reportedByMe,
+                reportCount = if (moderatable) openCounts[c.id] ?: 0 else null,
             )
         }
     }
@@ -105,6 +116,14 @@ class CommentController(
         if (comment.memberId != member.id) throw ForbiddenException("본인이 쓴 댓글만 지울 수 있습니다.")
         commentRepository.delete(comment)
         return ResponseEntity.noContent().build()
+    }
+
+    @Operation(summary = "댓글 신고 (로그인 필요)", description = "reason: ABUSE | SPAM | FLOOD | OTHER (OTHER면 detail 필수). 같은 댓글은 한 번만 (409)")
+    @PostMapping("/api/comments/{commentId}/report")
+    fun report(@PathVariable commentId: Long, @RequestBody body: ReportRequest, request: HttpServletRequest): ResponseEntity<Void> {
+        val member = memberAuth.requireCompleted(request)
+        reports.report(member, commentId, body.reason, body.detail)
+        return ResponseEntity.status(HttpStatus.CREATED).build()
     }
 
     private fun validate(raw: String?): String {
