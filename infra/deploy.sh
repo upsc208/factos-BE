@@ -5,7 +5,7 @@
 set -euo pipefail
 
 APP_DIR="/opt/atleti-news"
-HEALTH_URL="http://localhost:8080/api/news/sources"
+HEALTH_URL="http://localhost:8080/api/news/clubs/arsenal?size=1"   # DB를 읽는 가벼운 조회
 MAX_TRIES=60   # 3초 × 60회 = 최대 3분 대기 (Micro 인스턴스는 기동이 느림)
 
 cd "$APP_DIR"

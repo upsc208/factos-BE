@@ -27,7 +27,7 @@ sudo chown $USER:$USER /opt/atleti-news
 
 **한 줄 요약: 이걸 빼먹으면 배포는 ✅ 성공으로 뜨는데 채팅만 조용히 안 된다.**
 
-앱은 Redis가 없어도 정상 기동하도록 만들어져 있고(fail-open, `RedisConfig`), 헬스체크(`/api/news/sources`)는 DB만 보므로 **Redis 없이도 배포가 성공으로 표시된다.** 그래서 설치를 잊으면 매치데이에 채팅방을 열어보고서야 알게 된다. 설계 근거는 `docs/redis-design.md` 2장.
+앱은 Redis가 없어도 정상 기동하도록 만들어져 있고(fail-open, `RedisConfig`), 헬스체크(`/api/news/clubs/arsenal?size=1`)는 DB만 보므로 **Redis 없이도 배포가 성공으로 표시된다.** 그래서 설치를 잊으면 매치데이에 채팅방을 열어보고서야 알게 된다. 설계 근거는 `docs/redis-design.md` 2장.
 
 ```bash
 # ① 스왑 2GB 먼저 (RAM 1GB 환경의 OOM kill 보험)
@@ -156,7 +156,7 @@ cd /opt/atleti-news
 
 ```bash
 systemctl status atleti-news                        # active (running)
-curl -s http://localhost:8080/api/news/sources      # JSON 응답
+curl -s "http://localhost:8080/api/news/clubs/arsenal?size=1"   # JSON 응답
 journalctl -u atleti-news -f                        # 실시간 로그 (Ctrl+C로 종료)
 ```
 
