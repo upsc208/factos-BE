@@ -1,0 +1,13 @@
+build
+.gradle
+.kotlin
+.vs
+.idea
+.git
+.env*
+doc
+docs
+infra
+scripts
+project.zip
+*.md
