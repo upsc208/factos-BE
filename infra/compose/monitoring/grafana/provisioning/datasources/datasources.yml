@@ -1,0 +1,42 @@
+# Grafana 데이터 소스 — 파일로만 관리한다 (UI에서 고쳐도 재시작하면 이 내용으로 돌아온다)
+# DB는 읽기 전용 계정 grafana_ro (monitoring/db-readonly.sql)로만 읽는다
+apiVersion: 1
+
+datasources:
+  - name: Prometheus
+    uid: prometheus
+    type: prometheus
+    access: proxy
+    url: http://prometheus:9090
+    isDefault: true
+    editable: false
+
+  - name: factos DB
+    uid: factos-db
+    type: grafana-postgresql-datasource
+    url: postgres:5432
+    user: grafana_ro
+    editable: false
+    jsonData:
+      database: ${POSTGRES_DB}
+      sslmode: disable
+      postgresVersion: 1600
+      timescaledb: false
+      maxOpenConns: 5
+    secureJsonData:
+      password: ${GRAFANA_DB_PASSWORD}
+
+  - name: travel DB
+    uid: travel-db
+    type: grafana-postgresql-datasource
+    url: travel-db:5432
+    user: grafana_ro
+    editable: false
+    jsonData:
+      database: travel
+      sslmode: disable
+      postgresVersion: 1600
+      timescaledb: false
+      maxOpenConns: 5
+    secureJsonData:
+      password: ${GRAFANA_DB_PASSWORD}

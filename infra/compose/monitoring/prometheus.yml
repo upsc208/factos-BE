@@ -1,0 +1,30 @@
+# Prometheus — 15초마다 내부망으로 긁는다. 보관 기간은 compose의 --storage.tsdb.retention.time
+global:
+  scrape_interval: 15s
+  evaluation_interval: 15s
+
+scrape_configs:
+  # Spring 두 서비스 (/actuator/prometheus — nginx는 밖으로 내지 않는다)
+  - job_name: backend
+    metrics_path: /actuator/prometheus
+    static_configs:
+      - targets: ["backend:8080"]
+  - job_name: travel
+    metrics_path: /actuator/prometheus
+    static_configs:
+      - targets: ["travel:8090"]
+
+  # 컨테이너별 CPU·메모리·네트워크 (web·crawler·DB·redis도 여기서 본다)
+  - job_name: cadvisor
+    scrape_interval: 30s
+    static_configs:
+      - targets: ["cadvisor:8080"]
+
+  # 서버 자체 (CPU·메모리·디스크)
+  - job_name: node
+    static_configs:
+      - targets: ["node-exporter:9100"]
+
+  - job_name: prometheus
+    static_configs:
+      - targets: ["localhost:9090"]

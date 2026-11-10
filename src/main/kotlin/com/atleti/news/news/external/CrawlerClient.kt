@@ -1,6 +1,9 @@
 package com.atleti.news.news.external
 
+import io.micrometer.core.instrument.MeterRegistry
+import io.micrometer.core.instrument.Timer
 import kotlinx.coroutines.withTimeout
+import java.util.concurrent.TimeUnit
 import org.springframework.beans.factory.annotation.Value
 import org.springframework.stereotype.Service
 import org.springframework.web.reactive.function.client.WebClient
@@ -17,7 +20,8 @@ import org.springframework.web.reactive.function.client.awaitBody
  */
 @Service
 class CrawlerClient(
-    @Value("\${atleti.source.crawler-base-url}") baseUrl: String
+    @Value("\${atleti.source.crawler-base-url}") baseUrl: String,
+    private val meters: MeterRegistry,
 ) {
     private val webClient = WebClient.builder()
         .baseUrl(baseUrl)
@@ -25,25 +29,44 @@ class CrawlerClient(
         .codecs { it.defaultCodecs().maxInMemorySize(10 * 1024 * 1024) }
         .build()
 
-    suspend fun extract(urls: List<String>): List<ExtractedArticle> = withTimeout(EXTRACT_TIMEOUT_MS) {
-        webClient.post().uri("/extract")
-            .bodyValue(ExtractRequest(urls))
-            .retrieve()
-            .awaitBody<ExtractResponse>()
-    }.results
+    suspend fun extract(urls: List<String>): List<ExtractedArticle> = timed("extract") {
+        withTimeout(EXTRACT_TIMEOUT_MS) {
+            webClient.post().uri("/extract")
+                .bodyValue(ExtractRequest(urls))
+                .retrieve()
+                .awaitBody<ExtractResponse>()
+        }.results
+    }
 
     /**
      * @return 입력과 같은 순서의 번역. 번역 모델이 없을 때(503)는 null — 기사는 PENDING으로 두고 다음 주기에 다시 시도한다
      */
-    suspend fun translate(texts: List<String>): List<String>? = try {
-        withTimeout(TRANSLATE_TIMEOUT_MS) {
-            webClient.post().uri("/translate")
-                .bodyValue(TranslateRequest(texts.map { it.take(MAX_TEXT_LENGTH) }))
-                .retrieve()
-                .awaitBody<TranslateResponse>()
-        }.translations
-    } catch (e: WebClientResponseException.ServiceUnavailable) {
-        null
+    suspend fun translate(texts: List<String>): List<String>? = timed("translate") {
+        try {
+            withTimeout(TRANSLATE_TIMEOUT_MS) {
+                webClient.post().uri("/translate")
+                    .bodyValue(TranslateRequest(texts.map { it.take(MAX_TEXT_LENGTH) }))
+                    .retrieve()
+                    .awaitBody<TranslateResponse>()
+            }.translations
+        } catch (e: WebClientResponseException.ServiceUnavailable) {
+            null
+        }
+    }
+
+    /**
+     * 걸린 시간·결과를 `factos_crawler_seconds{op,outcome}`로 남긴다 (Grafana "서버 상태").
+     * outcome: ok · unavailable(번역 모델 없음 → null) · error(예외, 그대로 다시 던진다)
+     */
+    private suspend fun <T> timed(op: String, block: suspend () -> T): T {
+        val start = System.nanoTime()
+        var outcome = "error"
+        try {
+            return block().also { outcome = if (it == null) "unavailable" else "ok" }
+        } finally {
+            Timer.builder("factos.crawler").tag("op", op).tag("outcome", outcome)
+                .register(meters).record(System.nanoTime() - start, TimeUnit.NANOSECONDS)
+        }
     }
 
     companion object {

@@ -159,7 +159,111 @@ services:
     mem_limit: 512m
     logging: *logging
 
+  # ── 운영 통계 (profile "monitoring": .env에 COMPOSE_PROFILES=monitoring 을 넣어야 뜬다) ──
+  # Grafana는 서버 안(127.0.0.1:3001)에만 열린다 → ssh -L 3001:localhost:3001 로 본다. 나머지는 포트를 열지 않는다
+  prometheus:
+    image: prom/prometheus:v3.5.0
+    profiles: [monitoring]
+    restart: unless-stopped
+    command:
+      - --config.file=/etc/prometheus/prometheus.yml
+      - --storage.tsdb.path=/prometheus
+      - --storage.tsdb.retention.time=30d
+      - --storage.tsdb.retention.size=5GB
+    volumes:
+      - ./monitoring/prometheus.yml:/etc/prometheus/prometheus.yml:ro
+      - promdata:/prometheus
+    mem_limit: 768m
+    logging: *logging
+
+  # 컨테이너별 CPU·메모리
+  cadvisor:
+    image: gcr.io/cadvisor/cadvisor:v0.52.1
+    profiles: [monitoring]
+    restart: unless-stopped
+    privileged: true
+    command:
+      - --housekeeping_interval=30s
+      - --docker_only=true
+      - --store_container_labels=false
+      - --disable_metrics=percpu,sched,tcp,udp,disk,diskIO,hugetlb,referenced_memory,cpu_topology,resctrl,process
+    volumes:
+      - /:/rootfs:ro
+      - /var/run:/var/run:ro
+      - /sys:/sys:ro
+      - /var/lib/docker/:/var/lib/docker:ro
+    mem_limit: 256m
+    logging: *logging
+
+  # 서버 자체 CPU·메모리·디스크
+  node-exporter:
+    image: prom/node-exporter:v1.9.1
+    profiles: [monitoring]
+    restart: unless-stopped
+    pid: host
+    command: ["--path.rootfs=/host"]
+    volumes:
+      - /:/host:ro
+    mem_limit: 64m
+    logging: *logging
+
+  # Grafana용 읽기 전용 DB 계정을 만든다 (뜰 때마다 한 번 돌고 끝난다)
+  grafana-db-init:
+    image: postgres:16-alpine
+    profiles: [monitoring]
+    restart: "no"
+    entrypoint: ["sh", "/db-readonly.sh"]
+    environment:
+      GRAFANA_ADMIN_PASSWORD: ${GRAFANA_ADMIN_PASSWORD:-}
+      GRAFANA_DB_PASSWORD: ${GRAFANA_DB_PASSWORD:-}
+      POSTGRES_DB: ${POSTGRES_DB}
+      POSTGRES_USER: ${POSTGRES_USER}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+      TRAVEL_DB_PASSWORD: ${TRAVEL_DB_PASSWORD}
+    volumes:
+      - ./monitoring/db-readonly.sh:/db-readonly.sh:ro
+    depends_on:
+      # 테이블이 다 생긴 뒤에 권한을 준다 (backend는 ddl-auto, travel은 Flyway)
+      backend:
+        condition: service_healthy
+      travel:
+        condition: service_healthy
+    logging: *logging
+
+  grafana:
+    image: grafana/grafana:12.1.1
+    profiles: [monitoring]
+    restart: unless-stopped
+    ports:
+      - "127.0.0.1:${GRAFANA_PORT:-3001}:3000"
+    environment:
+      GF_SECURITY_ADMIN_USER: admin
+      GF_SECURITY_ADMIN_PASSWORD: ${GRAFANA_ADMIN_PASSWORD:-}   # 비어 있으면 grafana-db-init이 실패해 Grafana가 뜨지 않는다
+      GF_USERS_ALLOW_SIGN_UP: "false"
+      GF_AUTH_ANONYMOUS_ENABLED: "false"
+      GF_ANALYTICS_REPORTING_ENABLED: "false"
+      GF_ANALYTICS_CHECK_FOR_UPDATES: "false"
+      GF_NEWS_NEWS_FEED_ENABLED: "false"
+      GF_DATE_FORMATS_DEFAULT_TIMEZONE: Asia/Seoul
+      GF_DASHBOARDS_DEFAULT_HOME_DASHBOARD_PATH: /var/lib/grafana/dashboards/system.json
+      # 데이터 소스 파일(datasources.yml)이 읽는 값
+      POSTGRES_DB: ${POSTGRES_DB}
+      GRAFANA_DB_PASSWORD: ${GRAFANA_DB_PASSWORD:-}
+    volumes:
+      - ./monitoring/grafana/provisioning:/etc/grafana/provisioning:ro
+      - ./monitoring/grafana/dashboards:/var/lib/grafana/dashboards:ro
+      - grafanadata:/var/lib/grafana
+    depends_on:
+      prometheus:
+        condition: service_started
+      grafana-db-init:
+        condition: service_completed_successfully
+    mem_limit: 384m
+    logging: *logging
+
 volumes:
   pgdata:
   redisdata:
   travel-pgdata:
+  promdata:
+  grafanadata:

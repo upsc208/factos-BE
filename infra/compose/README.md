@@ -78,6 +78,27 @@ GHCR 패키지는 처음 올라가면 비공개다. 서버가 받으려면 패�
 9. OCI 보안 목록: 80번은 Cloudflare IP만, 22번은 필요한 곳만
 10. 카카오·구글 콘솔의 Redirect URI를 `https://도메인/api/auth/{kakao|google}/callback`으로
 
+## 운영 통계 (Prometheus + Grafana) — `monitoring/`
+
+```
+backend·travel ─ /actuator/prometheus ─┐
+cadvisor (컨테이너) ───────────────────┼▶ Prometheus (30일·5GB) ─▶ Grafana ◀─ factos DB · travel DB (읽기 전용 grafana_ro)
+node-exporter (서버) ──────────────────┘                             ▲
+                                                     127.0.0.1:3001만 — ssh -L 3001:localhost:3001 <서버>
+```
+
+- compose profile `monitoring`이라 `.env`에 `COMPOSE_PROFILES=monitoring`이 있어야 뜬다. `GRAFANA_ADMIN_PASSWORD`·`GRAFANA_DB_PASSWORD`도 필요 (비면 Grafana가 안 뜬다 — 나머지 서비스는 영향 없음)
+- 보기: 내 PC에서 `ssh -L 3001:localhost:3001 <계정>@<서버>` → `http://localhost:3001` (admin / `GRAFANA_ADMIN_PASSWORD`). 인터넷에는 열지 않는다
+- 대시보드 (factos 폴더)
+  - **서버 상태**: 서비스 생존, 요청/초, p95 응답 시간, 4xx·5xx, 느린·많이 불린 API, 크롤러 추출·번역 시간과 결과, JVM 힙·GC, DB 연결, 컨테이너·서버 CPU·메모리·디스크
+  - **유저 · 기사**: 가입·로그인(24시간·7일)·응원팀·로그인 방식, 팀별 수집 기사·조회수, 출처별, 번역 대기·완료율, 많이 본 기사, 댓글·신고, 수집 시간·실패, 팬 평점
+  - **축구 여행**: 여행 글·댓글, 처리할 제보, 지역별 펍, 팀 팬 펍, 경기장 가격 항목·오래된 가격
+- `/actuator`는 nginx가 밖으로 내지 않는다 (`/`는 web으로 간다). Prometheus가 내부망으로 긁는다
+- DB 계정 `grafana_ro`는 `grafana-db-init`이 뜰 때마다 맞춘다: 읽기 전용 트랜잭션 + 10초 제한, 회원의 소셜 계정 id·평점 투표 IP 열은 못 읽는다
+- "24시간 안에 로그인"은 `member.last_login_at` 기준이라 쿠키로 계속 들어오는 사람은 안 센다 (대략적인 활동 회원)
+- 대시보드를 바꾸려면 `monitoring/grafana/gen-dashboards.js`를 고치고 `node gen-dashboards.js dashboards` → 커밋. Grafana UI에서 고친 건 저장되지 않는다
+- 설정은 백엔드 배포 때 `monitoring/`째 서버로 간다. `prometheus.yml`을 바꾼 뒤엔 `dc restart prometheus`
+
 ## 자주 쓰는 명령
 
 ```bash

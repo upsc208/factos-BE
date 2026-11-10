@@ -1,0 +1,1435 @@
+{
+  "uid": "factos-community",
+  "title": "유저 · 기사",
+  "tags": [
+    "factos",
+    "business"
+  ],
+  "timezone": "browser",
+  "schemaVersion": 39,
+  "version": 1,
+  "editable": false,
+  "graphTooltip": 1,
+  "time": {
+    "from": "now-30d",
+    "to": "now"
+  },
+  "refresh": "5m",
+  "templating": {
+    "list": []
+  },
+  "annotations": {
+    "list": []
+  },
+  "panels": [
+    {
+      "id": 26,
+      "type": "row",
+      "title": "회원",
+      "collapsed": false,
+      "gridPos": {
+        "h": 1,
+        "w": 24,
+        "x": 0,
+        "y": 0
+      },
+      "panels": []
+    },
+    {
+      "id": 1,
+      "type": "stat",
+      "title": "가입 회원",
+      "datasource": {
+        "type": "grafana-postgresql-datasource",
+        "uid": "factos-db"
+      },
+      "targets": [
+        {
+          "datasource": {
+            "type": "grafana-postgresql-datasource",
+            "uid": "factos-db"
+          },
+          "rawSql": "SELECT count(*) FROM member WHERE signup_completed",
+          "format": "table",
+          "rawQuery": true,
+          "editorMode": "code",
+          "refId": "A"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "short",
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "blue",
+                "value": null
+              }
+            ]
+          }
+        },
+        "overrides": []
+      },
+      "options": {
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": "",
+          "values": false
+        },
+        "colorMode": "value",
+        "graphMode": "none",
+        "textMode": "auto",
+        "justifyMode": "auto"
+      },
+      "description": "",
+      "gridPos": {
+        "h": 4,
+        "w": 4,
+        "x": 0,
+        "y": 1
+      }
+    },
+    {
+      "id": 2,
+      "type": "stat",
+      "title": "오늘 가입 (KST)",
+      "datasource": {
+        "type": "grafana-postgresql-datasource",
+        "uid": "factos-db"
+      },
+      "targets": [
+        {
+          "datasource": {
+            "type": "grafana-postgresql-datasource",
+            "uid": "factos-db"
+          },
+          "rawSql": "SELECT count(*) FROM member WHERE signup_completed AND created_at >= date_trunc('day', now() AT TIME ZONE 'Asia/Seoul') AT TIME ZONE 'Asia/Seoul'",
+          "format": "table",
+          "rawQuery": true,
+          "editorMode": "code",
+          "refId": "A"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "short",
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "blue",
+                "value": null
+              }
+            ]
+          }
+        },
+        "overrides": []
+      },
+      "options": {
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": "",
+          "values": false
+        },
+        "colorMode": "value",
+        "graphMode": "none",
+        "textMode": "auto",
+        "justifyMode": "auto"
+      },
+      "description": "",
+      "gridPos": {
+        "h": 4,
+        "w": 4,
+        "x": 4,
+        "y": 1
+      }
+    },
+    {
+      "id": 3,
+      "type": "stat",
+      "title": "24시간 안에 로그인",
+      "datasource": {
+        "type": "grafana-postgresql-datasource",
+        "uid": "factos-db"
+      },
+      "targets": [
+        {
+          "datasource": {
+            "type": "grafana-postgresql-datasource",
+            "uid": "factos-db"
+          },
+          "rawSql": "SELECT count(*) FROM member WHERE last_login_at > now() - interval '24 hours'",
+          "format": "table",
+          "rawQuery": true,
+          "editorMode": "code",
+          "refId": "A"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "short",
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "blue",
+                "value": null
+              }
+            ]
+          }
+        },
+        "overrides": []
+      },
+      "options": {
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": "",
+          "values": false
+        },
+        "colorMode": "value",
+        "graphMode": "none",
+        "textMode": "auto",
+        "justifyMode": "auto"
+      },
+      "description": "로그인할 때만 갱신된다 (쿠키로 계속 들어오는 사람은 안 셈) — 대략적인 활동 회원",
+      "gridPos": {
+        "h": 4,
+        "w": 4,
+        "x": 8,
+        "y": 1
+      }
+    },
+    {
+      "id": 4,
+      "type": "stat",
+      "title": "7일 안에 로그인",
+      "datasource": {
+        "type": "grafana-postgresql-datasource",
+        "uid": "factos-db"
+      },
+      "targets": [
+        {
+          "datasource": {
+            "type": "grafana-postgresql-datasource",
+            "uid": "factos-db"
+          },
+          "rawSql": "SELECT count(*) FROM member WHERE last_login_at > now() - interval '7 days'",
+          "format": "table",
+          "rawQuery": true,
+          "editorMode": "code",
+          "refId": "A"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "short",
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "blue",
+                "value": null
+              }
+            ]
+          }
+        },
+        "overrides": []
+      },
+      "options": {
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": "",
+          "values": false
+        },
+        "colorMode": "value",
+        "graphMode": "none",
+        "textMode": "auto",
+        "justifyMode": "auto"
+      },
+      "description": "",
+      "gridPos": {
+        "h": 4,
+        "w": 4,
+        "x": 12,
+        "y": 1
+      }
+    },
+    {
+      "id": 5,
+      "type": "stat",
+      "title": "가입 중단 (닉네임 안 정함)",
+      "datasource": {
+        "type": "grafana-postgresql-datasource",
+        "uid": "factos-db"
+      },
+      "targets": [
+        {
+          "datasource": {
+            "type": "grafana-postgresql-datasource",
+            "uid": "factos-db"
+          },
+          "rawSql": "SELECT count(*) FROM member WHERE NOT signup_completed",
+          "format": "table",
+          "rawQuery": true,
+          "editorMode": "code",
+          "refId": "A"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "short",
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "blue",
+                "value": null
+              }
+            ]
+          }
+        },
+        "overrides": []
+      },
+      "options": {
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": "",
+          "values": false
+        },
+        "colorMode": "value",
+        "graphMode": "none",
+        "textMode": "auto",
+        "justifyMode": "auto"
+      },
+      "description": "첫 로그인만 하고 /signup을 마치지 않은 계정",
+      "gridPos": {
+        "h": 4,
+        "w": 4,
+        "x": 16,
+        "y": 1
+      }
+    },
+    {
+      "id": 6,
+      "type": "stat",
+      "title": "정지 중",
+      "datasource": {
+        "type": "grafana-postgresql-datasource",
+        "uid": "factos-db"
+      },
+      "targets": [
+        {
+          "datasource": {
+            "type": "grafana-postgresql-datasource",
+            "uid": "factos-db"
+          },
+          "rawSql": "SELECT count(DISTINCT member_id) FROM member_suspension WHERE lifted_at IS NULL AND ends_at > now()",
+          "format": "table",
+          "rawQuery": true,
+          "editorMode": "code",
+          "refId": "A"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "short",
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "green",
+                "value": null
+              },
+              {
+                "color": "orange",
+                "value": 1
+              }
+            ]
+          }
+        },
+        "overrides": []
+      },
+      "options": {
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": "",
+          "values": false
+        },
+        "colorMode": "value",
+        "graphMode": "none",
+        "textMode": "auto",
+        "justifyMode": "auto"
+      },
+      "description": "",
+      "gridPos": {
+        "h": 4,
+        "w": 4,
+        "x": 20,
+        "y": 1
+      }
+    },
+    {
+      "id": 7,
+      "type": "timeseries",
+      "title": "일별 가입 · 로그인 (KST)",
+      "datasource": {
+        "type": "grafana-postgresql-datasource",
+        "uid": "factos-db"
+      },
+      "targets": [
+        {
+          "datasource": {
+            "type": "grafana-postgresql-datasource",
+            "uid": "factos-db"
+          },
+          "rawSql": "SELECT date_trunc('day', created_at AT TIME ZONE 'Asia/Seoul') AT TIME ZONE 'Asia/Seoul' AS time, count(*) AS \"가입\" FROM member WHERE signup_completed AND $__timeFilter(created_at) GROUP BY 1 ORDER BY 1",
+          "format": "time_series",
+          "rawQuery": true,
+          "editorMode": "code",
+          "refId": "A"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "short",
+          "custom": {
+            "lineWidth": 1,
+            "fillOpacity": 10,
+            "showPoints": "never",
+            "stacking": {
+              "mode": "none"
+            },
+            "drawStyle": "bars"
+          }
+        },
+        "overrides": []
+      },
+      "options": {
+        "legend": {
+          "displayMode": "list",
+          "placement": "bottom"
+        },
+        "tooltip": {
+          "mode": "multi",
+          "sort": "desc"
+        }
+      },
+      "description": "",
+      "gridPos": {
+        "h": 8,
+        "w": 12,
+        "x": 0,
+        "y": 5
+      }
+    },
+    {
+      "id": 8,
+      "type": "piechart",
+      "title": "응원팀",
+      "datasource": {
+        "type": "grafana-postgresql-datasource",
+        "uid": "factos-db"
+      },
+      "targets": [
+        {
+          "datasource": {
+            "type": "grafana-postgresql-datasource",
+            "uid": "factos-db"
+          },
+          "rawSql": "SELECT CASE lower(favorite_team) WHEN 'arsenal' THEN '아스날' WHEN 'chelsea' THEN '첼시' WHEN 'liverpool' THEN '리버풀' WHEN 'mancity' THEN '맨시티' WHEN 'man_city' THEN '맨시티' WHEN 'manutd' THEN '맨유' WHEN 'man_utd' THEN '맨유' WHEN 'tottenham' THEN '토트넘' WHEN 'other' THEN '기타' ELSE coalesce(favorite_team, '미정') END AS \"팀\", count(*) AS \"회원\" FROM member WHERE signup_completed GROUP BY 1 ORDER BY 2 DESC",
+          "format": "table",
+          "rawQuery": true,
+          "editorMode": "code",
+          "refId": "A"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "short"
+        },
+        "overrides": []
+      },
+      "options": {
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": "",
+          "values": true
+        },
+        "pieType": "donut",
+        "legend": {
+          "displayMode": "table",
+          "placement": "right",
+          "values": [
+            "value",
+            "percent"
+          ]
+        },
+        "displayLabels": []
+      },
+      "gridPos": {
+        "h": 8,
+        "w": 6,
+        "x": 12,
+        "y": 5
+      }
+    },
+    {
+      "id": 9,
+      "type": "piechart",
+      "title": "로그인 방식",
+      "datasource": {
+        "type": "grafana-postgresql-datasource",
+        "uid": "factos-db"
+      },
+      "targets": [
+        {
+          "datasource": {
+            "type": "grafana-postgresql-datasource",
+            "uid": "factos-db"
+          },
+          "rawSql": "SELECT provider AS \"방식\", count(*) AS \"회원\" FROM member GROUP BY 1",
+          "format": "table",
+          "rawQuery": true,
+          "editorMode": "code",
+          "refId": "A"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "short"
+        },
+        "overrides": []
+      },
+      "options": {
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": "",
+          "values": true
+        },
+        "pieType": "donut",
+        "legend": {
+          "displayMode": "table",
+          "placement": "right",
+          "values": [
+            "value",
+            "percent"
+          ]
+        },
+        "displayLabels": []
+      },
+      "gridPos": {
+        "h": 8,
+        "w": 6,
+        "x": 18,
+        "y": 5
+      }
+    },
+    {
+      "id": 27,
+      "type": "row",
+      "title": "기사",
+      "collapsed": false,
+      "gridPos": {
+        "h": 1,
+        "w": 24,
+        "x": 0,
+        "y": 13
+      },
+      "panels": []
+    },
+    {
+      "id": 10,
+      "type": "stat",
+      "title": "기간 안 수집 기사",
+      "datasource": {
+        "type": "grafana-postgresql-datasource",
+        "uid": "factos-db"
+      },
+      "targets": [
+        {
+          "datasource": {
+            "type": "grafana-postgresql-datasource",
+            "uid": "factos-db"
+          },
+          "rawSql": "SELECT count(*) FROM news_article WHERE $__timeFilter(created_at)",
+          "format": "table",
+          "rawQuery": true,
+          "editorMode": "code",
+          "refId": "A"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "short",
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "blue",
+                "value": null
+              }
+            ]
+          }
+        },
+        "overrides": []
+      },
+      "options": {
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": "",
+          "values": false
+        },
+        "colorMode": "value",
+        "graphMode": "none",
+        "textMode": "auto",
+        "justifyMode": "auto"
+      },
+      "description": "",
+      "gridPos": {
+        "h": 4,
+        "w": 4,
+        "x": 0,
+        "y": 14
+      }
+    },
+    {
+      "id": 11,
+      "type": "stat",
+      "title": "번역 대기",
+      "datasource": {
+        "type": "grafana-postgresql-datasource",
+        "uid": "factos-db"
+      },
+      "targets": [
+        {
+          "datasource": {
+            "type": "grafana-postgresql-datasource",
+            "uid": "factos-db"
+          },
+          "rawSql": "SELECT count(*) FROM news_article WHERE translation_status = 'PENDING'",
+          "format": "table",
+          "rawQuery": true,
+          "editorMode": "code",
+          "refId": "A"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "short",
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "green",
+                "value": null
+              },
+              {
+                "color": "orange",
+                "value": 20
+              },
+              {
+                "color": "red",
+                "value": 100
+              }
+            ]
+          }
+        },
+        "overrides": []
+      },
+      "options": {
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": "",
+          "values": false
+        },
+        "colorMode": "value",
+        "graphMode": "none",
+        "textMode": "auto",
+        "justifyMode": "auto"
+      },
+      "description": "크롤러 번역을 기다리는 기사",
+      "gridPos": {
+        "h": 4,
+        "w": 4,
+        "x": 4,
+        "y": 14
+      }
+    },
+    {
+      "id": 12,
+      "type": "stat",
+      "title": "번역 완료율 (기간)",
+      "datasource": {
+        "type": "grafana-postgresql-datasource",
+        "uid": "factos-db"
+      },
+      "targets": [
+        {
+          "datasource": {
+            "type": "grafana-postgresql-datasource",
+            "uid": "factos-db"
+          },
+          "rawSql": "SELECT avg(CASE WHEN translation_status = 'DONE' THEN 1.0 ELSE 0 END) FROM news_article WHERE $__timeFilter(created_at)",
+          "format": "table",
+          "rawQuery": true,
+          "editorMode": "code",
+          "refId": "A"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "percentunit",
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "blue",
+                "value": null
+              }
+            ]
+          }
+        },
+        "overrides": []
+      },
+      "options": {
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": "",
+          "values": false
+        },
+        "colorMode": "value",
+        "graphMode": "none",
+        "textMode": "auto",
+        "justifyMode": "auto"
+      },
+      "description": "",
+      "gridPos": {
+        "h": 4,
+        "w": 4,
+        "x": 8,
+        "y": 14
+      }
+    },
+    {
+      "id": 13,
+      "type": "stat",
+      "title": "기간 안 조회수",
+      "datasource": {
+        "type": "grafana-postgresql-datasource",
+        "uid": "factos-db"
+      },
+      "targets": [
+        {
+          "datasource": {
+            "type": "grafana-postgresql-datasource",
+            "uid": "factos-db"
+          },
+          "rawSql": "SELECT coalesce(sum(view_count), 0) FROM news_article WHERE $__timeFilter(created_at)",
+          "format": "table",
+          "rawQuery": true,
+          "editorMode": "code",
+          "refId": "A"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "short",
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "blue",
+                "value": null
+              }
+            ]
+          }
+        },
+        "overrides": []
+      },
+      "options": {
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": "",
+          "values": false
+        },
+        "colorMode": "value",
+        "graphMode": "none",
+        "textMode": "auto",
+        "justifyMode": "auto"
+      },
+      "description": "그 기간에 수집된 기사들의 누적 조회수",
+      "gridPos": {
+        "h": 4,
+        "w": 4,
+        "x": 12,
+        "y": 14
+      }
+    },
+    {
+      "id": 14,
+      "type": "stat",
+      "title": "수집 실패 (기간)",
+      "datasource": {
+        "type": "grafana-postgresql-datasource",
+        "uid": "factos-db"
+      },
+      "targets": [
+        {
+          "datasource": {
+            "type": "grafana-postgresql-datasource",
+            "uid": "factos-db"
+          },
+          "rawSql": "SELECT count(*) FROM collection_log WHERE status = 'FAIL' AND $__timeFilter(created_at)",
+          "format": "table",
+          "rawQuery": true,
+          "editorMode": "code",
+          "refId": "A"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "short",
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "green",
+                "value": null
+              },
+              {
+                "color": "red",
+                "value": 1
+              }
+            ]
+          }
+        },
+        "overrides": []
+      },
+      "options": {
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": "",
+          "values": false
+        },
+        "colorMode": "value",
+        "graphMode": "none",
+        "textMode": "auto",
+        "justifyMode": "auto"
+      },
+      "description": "",
+      "gridPos": {
+        "h": 4,
+        "w": 4,
+        "x": 16,
+        "y": 14
+      }
+    },
+    {
+      "id": 15,
+      "type": "stat",
+      "title": "마지막 수집",
+      "datasource": {
+        "type": "grafana-postgresql-datasource",
+        "uid": "factos-db"
+      },
+      "targets": [
+        {
+          "datasource": {
+            "type": "grafana-postgresql-datasource",
+            "uid": "factos-db"
+          },
+          "rawSql": "SELECT extract(epoch FROM now() - max(created_at)) FROM collection_log",
+          "format": "table",
+          "rawQuery": true,
+          "editorMode": "code",
+          "refId": "A"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "s",
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "green",
+                "value": null
+              },
+              {
+                "color": "orange",
+                "value": 3600
+              },
+              {
+                "color": "red",
+                "value": 7200
+              }
+            ]
+          }
+        },
+        "overrides": []
+      },
+      "options": {
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": "",
+          "values": false
+        },
+        "colorMode": "value",
+        "graphMode": "none",
+        "textMode": "auto",
+        "justifyMode": "auto"
+      },
+      "description": "15분마다 돈다 — 1시간 넘게 비면 수집 루프를 확인",
+      "gridPos": {
+        "h": 4,
+        "w": 4,
+        "x": 20,
+        "y": 14
+      }
+    },
+    {
+      "id": 16,
+      "type": "timeseries",
+      "title": "팀별 수집 기사 (일별, KST)",
+      "datasource": {
+        "type": "grafana-postgresql-datasource",
+        "uid": "factos-db"
+      },
+      "targets": [
+        {
+          "datasource": {
+            "type": "grafana-postgresql-datasource",
+            "uid": "factos-db"
+          },
+          "rawSql": "SELECT date_trunc('day', a.created_at AT TIME ZONE 'Asia/Seoul') AT TIME ZONE 'Asia/Seoul' AS time, CASE lower(c.club) WHEN 'arsenal' THEN '아스날' WHEN 'chelsea' THEN '첼시' WHEN 'liverpool' THEN '리버풀' WHEN 'mancity' THEN '맨시티' WHEN 'man_city' THEN '맨시티' WHEN 'manutd' THEN '맨유' WHEN 'man_utd' THEN '맨유' WHEN 'tottenham' THEN '토트넘' WHEN 'other' THEN '기타' ELSE coalesce(c.club, '미정') END AS metric, count(*) AS value FROM news_article a JOIN news_article_club c ON c.article_id = a.id WHERE $__timeFilter(a.created_at) GROUP BY 1, 2 ORDER BY 1",
+          "format": "time_series",
+          "rawQuery": true,
+          "editorMode": "code",
+          "refId": "A"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "short",
+          "custom": {
+            "lineWidth": 1,
+            "fillOpacity": 60,
+            "showPoints": "never",
+            "stacking": {
+              "mode": "normal"
+            },
+            "drawStyle": "bars"
+          }
+        },
+        "overrides": []
+      },
+      "options": {
+        "legend": {
+          "displayMode": "list",
+          "placement": "bottom"
+        },
+        "tooltip": {
+          "mode": "multi",
+          "sort": "desc"
+        }
+      },
+      "description": "",
+      "gridPos": {
+        "h": 8,
+        "w": 12,
+        "x": 0,
+        "y": 18
+      }
+    },
+    {
+      "id": 17,
+      "type": "barchart",
+      "title": "팀별 조회수 (기간)",
+      "datasource": {
+        "type": "grafana-postgresql-datasource",
+        "uid": "factos-db"
+      },
+      "targets": [
+        {
+          "datasource": {
+            "type": "grafana-postgresql-datasource",
+            "uid": "factos-db"
+          },
+          "rawSql": "SELECT CASE lower(c.club) WHEN 'arsenal' THEN '아스날' WHEN 'chelsea' THEN '첼시' WHEN 'liverpool' THEN '리버풀' WHEN 'mancity' THEN '맨시티' WHEN 'man_city' THEN '맨시티' WHEN 'manutd' THEN '맨유' WHEN 'man_utd' THEN '맨유' WHEN 'tottenham' THEN '토트넘' WHEN 'other' THEN '기타' ELSE coalesce(c.club, '미정') END AS \"팀\", sum(a.view_count) AS \"조회수\" FROM news_article a JOIN news_article_club c ON c.article_id = a.id WHERE $__timeFilter(a.created_at) GROUP BY 1 ORDER BY 2 DESC",
+          "format": "table",
+          "rawQuery": true,
+          "editorMode": "code",
+          "refId": "A"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "short",
+          "custom": {
+            "fillOpacity": 80
+          }
+        },
+        "overrides": []
+      },
+      "options": {
+        "orientation": "auto",
+        "showValue": "auto",
+        "xTickLabelRotation": 0,
+        "legend": {
+          "showLegend": false,
+          "displayMode": "list",
+          "placement": "bottom"
+        },
+        "tooltip": {
+          "mode": "single"
+        }
+      },
+      "description": "",
+      "gridPos": {
+        "h": 8,
+        "w": 6,
+        "x": 12,
+        "y": 18
+      }
+    },
+    {
+      "id": 18,
+      "type": "barchart",
+      "title": "출처별 기사 (기간)",
+      "datasource": {
+        "type": "grafana-postgresql-datasource",
+        "uid": "factos-db"
+      },
+      "targets": [
+        {
+          "datasource": {
+            "type": "grafana-postgresql-datasource",
+            "uid": "factos-db"
+          },
+          "rawSql": "SELECT coalesce(source_name, '?') AS \"출처\", count(*) AS \"기사\" FROM news_article WHERE $__timeFilter(created_at) GROUP BY 1 ORDER BY 2 DESC LIMIT 12",
+          "format": "table",
+          "rawQuery": true,
+          "editorMode": "code",
+          "refId": "A"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "short",
+          "custom": {
+            "fillOpacity": 80
+          }
+        },
+        "overrides": []
+      },
+      "options": {
+        "orientation": "horizontal",
+        "showValue": "auto",
+        "xTickLabelRotation": 0,
+        "legend": {
+          "showLegend": false,
+          "displayMode": "list",
+          "placement": "bottom"
+        },
+        "tooltip": {
+          "mode": "single"
+        }
+      },
+      "description": "",
+      "gridPos": {
+        "h": 8,
+        "w": 6,
+        "x": 18,
+        "y": 18
+      }
+    },
+    {
+      "id": 19,
+      "type": "table",
+      "title": "많이 본 기사 (기간)",
+      "datasource": {
+        "type": "grafana-postgresql-datasource",
+        "uid": "factos-db"
+      },
+      "targets": [
+        {
+          "datasource": {
+            "type": "grafana-postgresql-datasource",
+            "uid": "factos-db"
+          },
+          "rawSql": "SELECT coalesce(a.title_ko, a.title_en) AS \"제목\", string_agg(DISTINCT CASE lower(c.club) WHEN 'arsenal' THEN '아스날' WHEN 'chelsea' THEN '첼시' WHEN 'liverpool' THEN '리버풀' WHEN 'mancity' THEN '맨시티' WHEN 'man_city' THEN '맨시티' WHEN 'manutd' THEN '맨유' WHEN 'man_utd' THEN '맨유' WHEN 'tottenham' THEN '토트넘' WHEN 'other' THEN '기타' ELSE coalesce(c.club, '미정') END, ', ') AS \"팀\", a.source_name AS \"출처\", a.view_count AS \"조회\", (SELECT count(*) FROM article_comment m WHERE m.article_id = a.id) AS \"댓글\", (SELECT count(*) FROM bookmark b WHERE b.article_id = a.id) AS \"즐겨찾기\", a.published_at AS \"발행\" FROM news_article a LEFT JOIN news_article_club c ON c.article_id = a.id WHERE $__timeFilter(a.created_at) GROUP BY a.id ORDER BY a.view_count DESC LIMIT 20",
+          "format": "table",
+          "rawQuery": true,
+          "editorMode": "code",
+          "refId": "A"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "custom": {
+            "align": "auto",
+            "cellOptions": {
+              "type": "auto"
+            }
+          }
+        },
+        "overrides": []
+      },
+      "options": {
+        "showHeader": true,
+        "cellHeight": "sm"
+      },
+      "transformations": [],
+      "description": "",
+      "gridPos": {
+        "h": 10,
+        "w": 24,
+        "x": 0,
+        "y": 26
+      }
+    },
+    {
+      "id": 28,
+      "type": "row",
+      "title": "댓글 · 신고",
+      "collapsed": false,
+      "gridPos": {
+        "h": 1,
+        "w": 24,
+        "x": 0,
+        "y": 36
+      },
+      "panels": []
+    },
+    {
+      "id": 20,
+      "type": "timeseries",
+      "title": "일별 댓글 (KST)",
+      "datasource": {
+        "type": "grafana-postgresql-datasource",
+        "uid": "factos-db"
+      },
+      "targets": [
+        {
+          "datasource": {
+            "type": "grafana-postgresql-datasource",
+            "uid": "factos-db"
+          },
+          "rawSql": "SELECT date_trunc('day', created_at AT TIME ZONE 'Asia/Seoul') AT TIME ZONE 'Asia/Seoul' AS time, count(*) AS \"댓글\" FROM article_comment WHERE $__timeFilter(created_at) GROUP BY 1 ORDER BY 1",
+          "format": "time_series",
+          "rawQuery": true,
+          "editorMode": "code",
+          "refId": "A"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "short",
+          "custom": {
+            "lineWidth": 1,
+            "fillOpacity": 10,
+            "showPoints": "never",
+            "stacking": {
+              "mode": "none"
+            },
+            "drawStyle": "bars"
+          }
+        },
+        "overrides": []
+      },
+      "options": {
+        "legend": {
+          "displayMode": "list",
+          "placement": "bottom"
+        },
+        "tooltip": {
+          "mode": "multi",
+          "sort": "desc"
+        }
+      },
+      "description": "",
+      "gridPos": {
+        "h": 8,
+        "w": 8,
+        "x": 0,
+        "y": 37
+      }
+    },
+    {
+      "id": 21,
+      "type": "table",
+      "title": "댓글 많이 쓴 회원 (기간)",
+      "datasource": {
+        "type": "grafana-postgresql-datasource",
+        "uid": "factos-db"
+      },
+      "targets": [
+        {
+          "datasource": {
+            "type": "grafana-postgresql-datasource",
+            "uid": "factos-db"
+          },
+          "rawSql": "SELECT m.nickname AS \"닉네임\", CASE lower(m.favorite_team) WHEN 'arsenal' THEN '아스날' WHEN 'chelsea' THEN '첼시' WHEN 'liverpool' THEN '리버풀' WHEN 'mancity' THEN '맨시티' WHEN 'man_city' THEN '맨시티' WHEN 'manutd' THEN '맨유' WHEN 'man_utd' THEN '맨유' WHEN 'tottenham' THEN '토트넘' WHEN 'other' THEN '기타' ELSE coalesce(m.favorite_team, '미정') END AS \"응원팀\", count(*) AS \"댓글\" FROM article_comment c JOIN member m ON m.id = c.member_id WHERE $__timeFilter(c.created_at) GROUP BY m.id, m.nickname, m.favorite_team ORDER BY 3 DESC LIMIT 10",
+          "format": "table",
+          "rawQuery": true,
+          "editorMode": "code",
+          "refId": "A"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "custom": {
+            "align": "auto",
+            "cellOptions": {
+              "type": "auto"
+            }
+          }
+        },
+        "overrides": []
+      },
+      "options": {
+        "showHeader": true,
+        "cellHeight": "sm"
+      },
+      "transformations": [],
+      "description": "",
+      "gridPos": {
+        "h": 8,
+        "w": 8,
+        "x": 8,
+        "y": 37
+      }
+    },
+    {
+      "id": 22,
+      "type": "table",
+      "title": "신고",
+      "datasource": {
+        "type": "grafana-postgresql-datasource",
+        "uid": "factos-db"
+      },
+      "targets": [
+        {
+          "datasource": {
+            "type": "grafana-postgresql-datasource",
+            "uid": "factos-db"
+          },
+          "rawSql": "SELECT CASE status WHEN 'OPEN' THEN '대기' WHEN 'RESOLVED' THEN '처리' WHEN 'DISMISSED' THEN '문제없음' ELSE status END AS \"상태\", reason AS \"사유\", count(*) AS \"건수\" FROM comment_report WHERE $__timeFilter(created_at) OR status = 'OPEN' GROUP BY status, reason ORDER BY status, 3 DESC",
+          "format": "table",
+          "rawQuery": true,
+          "editorMode": "code",
+          "refId": "A"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "custom": {
+            "align": "auto",
+            "cellOptions": {
+              "type": "auto"
+            }
+          }
+        },
+        "overrides": []
+      },
+      "options": {
+        "showHeader": true,
+        "cellHeight": "sm"
+      },
+      "transformations": [],
+      "description": "",
+      "gridPos": {
+        "h": 8,
+        "w": 8,
+        "x": 16,
+        "y": 37
+      }
+    },
+    {
+      "id": 29,
+      "type": "row",
+      "title": "수집 · 평점",
+      "collapsed": false,
+      "gridPos": {
+        "h": 1,
+        "w": 24,
+        "x": 0,
+        "y": 45
+      },
+      "panels": []
+    },
+    {
+      "id": 23,
+      "type": "timeseries",
+      "title": "수집 1회 걸린 시간",
+      "datasource": {
+        "type": "grafana-postgresql-datasource",
+        "uid": "factos-db"
+      },
+      "targets": [
+        {
+          "datasource": {
+            "type": "grafana-postgresql-datasource",
+            "uid": "factos-db"
+          },
+          "rawSql": "SELECT created_at AS time, execution_time_ms / 1000.0 AS \"초\" FROM collection_log WHERE $__timeFilter(created_at) ORDER BY 1",
+          "format": "time_series",
+          "rawQuery": true,
+          "editorMode": "code",
+          "refId": "A"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "s",
+          "custom": {
+            "lineWidth": 1,
+            "fillOpacity": 10,
+            "showPoints": "never",
+            "stacking": {
+              "mode": "none"
+            },
+            "drawStyle": "line"
+          }
+        },
+        "overrides": []
+      },
+      "options": {
+        "legend": {
+          "displayMode": "list",
+          "placement": "bottom"
+        },
+        "tooltip": {
+          "mode": "multi",
+          "sort": "desc"
+        }
+      },
+      "description": "",
+      "gridPos": {
+        "h": 8,
+        "w": 12,
+        "x": 0,
+        "y": 46
+      }
+    },
+    {
+      "id": 24,
+      "type": "table",
+      "title": "최근 수집 실패",
+      "datasource": {
+        "type": "grafana-postgresql-datasource",
+        "uid": "factos-db"
+      },
+      "targets": [
+        {
+          "datasource": {
+            "type": "grafana-postgresql-datasource",
+            "uid": "factos-db"
+          },
+          "rawSql": "SELECT created_at AS \"시각\", left(error_msg, 200) AS \"오류\" FROM collection_log WHERE status = 'FAIL' AND $__timeFilter(created_at) ORDER BY created_at DESC LIMIT 20",
+          "format": "table",
+          "rawQuery": true,
+          "editorMode": "code",
+          "refId": "A"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "custom": {
+            "align": "auto",
+            "cellOptions": {
+              "type": "auto"
+            }
+          }
+        },
+        "overrides": []
+      },
+      "options": {
+        "showHeader": true,
+        "cellHeight": "sm"
+      },
+      "transformations": [],
+      "description": "",
+      "gridPos": {
+        "h": 8,
+        "w": 12,
+        "x": 12,
+        "y": 46
+      }
+    },
+    {
+      "id": 25,
+      "type": "table",
+      "title": "팬 평점 투표 (기간)",
+      "datasource": {
+        "type": "grafana-postgresql-datasource",
+        "uid": "factos-db"
+      },
+      "targets": [
+        {
+          "datasource": {
+            "type": "grafana-postgresql-datasource",
+            "uid": "factos-db"
+          },
+          "rawSql": "SELECT match_id AS \"경기\", count(*) AS \"투표\", count(DISTINCT player_name) AS \"선수\", round(avg(score)::numeric, 2) AS \"평균 점수\" FROM player_rating_vote WHERE $__timeFilter(created_at) GROUP BY match_id ORDER BY 2 DESC LIMIT 15",
+          "format": "table",
+          "rawQuery": true,
+          "editorMode": "code",
+          "refId": "A"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "custom": {
+            "align": "auto",
+            "cellOptions": {
+              "type": "auto"
+            }
+          }
+        },
+        "overrides": []
+      },
+      "options": {
+        "showHeader": true,
+        "cellHeight": "sm"
+      },
+      "transformations": [],
+      "description": "",
+      "gridPos": {
+        "h": 8,
+        "w": 24,
+        "x": 0,
+        "y": 54
+      }
+    }
+  ]
+}

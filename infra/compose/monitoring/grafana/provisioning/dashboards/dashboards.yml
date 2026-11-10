@@ -1,0 +1,13 @@
+# 대시보드 JSON(monitoring/grafana/dashboards)은 gen-dashboards.js로 만든다 — 그 파일이 원본이다.
+# UI에서 고친 건 저장되지 않는다 — 생성기를 고쳐 node gen-dashboards.js dashboards 후 커밋한다
+apiVersion: 1
+
+providers:
+  - name: factos
+    folder: factos
+    type: file
+    disableDeletion: true
+    allowUiUpdates: false
+    updateIntervalSeconds: 60
+    options:
+      path: /var/lib/grafana/dashboards

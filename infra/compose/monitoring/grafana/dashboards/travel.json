@@ -1,0 +1,666 @@
+{
+  "uid": "factos-travel",
+  "title": "축구 여행",
+  "tags": [
+    "factos",
+    "business",
+    "travel"
+  ],
+  "timezone": "browser",
+  "schemaVersion": 39,
+  "version": 1,
+  "editable": false,
+  "graphTooltip": 1,
+  "time": {
+    "from": "now-30d",
+    "to": "now"
+  },
+  "refresh": "5m",
+  "templating": {
+    "list": []
+  },
+  "annotations": {
+    "list": []
+  },
+  "panels": [
+    {
+      "id": 1,
+      "type": "stat",
+      "title": "여행 글 (기간)",
+      "datasource": {
+        "type": "grafana-postgresql-datasource",
+        "uid": "travel-db"
+      },
+      "targets": [
+        {
+          "datasource": {
+            "type": "grafana-postgresql-datasource",
+            "uid": "travel-db"
+          },
+          "rawSql": "SELECT count(*) FROM post WHERE $__timeFilter(created_at)",
+          "format": "table",
+          "rawQuery": true,
+          "editorMode": "code",
+          "refId": "A"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "short",
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "blue",
+                "value": null
+              }
+            ]
+          }
+        },
+        "overrides": []
+      },
+      "options": {
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": "",
+          "values": false
+        },
+        "colorMode": "value",
+        "graphMode": "none",
+        "textMode": "auto",
+        "justifyMode": "auto"
+      },
+      "description": "",
+      "gridPos": {
+        "h": 4,
+        "w": 4,
+        "x": 0,
+        "y": 0
+      }
+    },
+    {
+      "id": 2,
+      "type": "stat",
+      "title": "여행 댓글 (기간)",
+      "datasource": {
+        "type": "grafana-postgresql-datasource",
+        "uid": "travel-db"
+      },
+      "targets": [
+        {
+          "datasource": {
+            "type": "grafana-postgresql-datasource",
+            "uid": "travel-db"
+          },
+          "rawSql": "SELECT count(*) FROM post_comment WHERE $__timeFilter(created_at)",
+          "format": "table",
+          "rawQuery": true,
+          "editorMode": "code",
+          "refId": "A"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "short",
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "blue",
+                "value": null
+              }
+            ]
+          }
+        },
+        "overrides": []
+      },
+      "options": {
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": "",
+          "values": false
+        },
+        "colorMode": "value",
+        "graphMode": "none",
+        "textMode": "auto",
+        "justifyMode": "auto"
+      },
+      "description": "",
+      "gridPos": {
+        "h": 4,
+        "w": 4,
+        "x": 4,
+        "y": 0
+      }
+    },
+    {
+      "id": 3,
+      "type": "stat",
+      "title": "처리할 제보",
+      "datasource": {
+        "type": "grafana-postgresql-datasource",
+        "uid": "travel-db"
+      },
+      "targets": [
+        {
+          "datasource": {
+            "type": "grafana-postgresql-datasource",
+            "uid": "travel-db"
+          },
+          "rawSql": "SELECT count(*) FROM guide_report WHERE status = 'PENDING'",
+          "format": "table",
+          "rawQuery": true,
+          "editorMode": "code",
+          "refId": "A"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "short",
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "green",
+                "value": null
+              },
+              {
+                "color": "orange",
+                "value": 1
+              },
+              {
+                "color": "red",
+                "value": 30
+              }
+            ]
+          }
+        },
+        "overrides": []
+      },
+      "options": {
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": "",
+          "values": false
+        },
+        "colorMode": "value",
+        "graphMode": "none",
+        "textMode": "auto",
+        "justifyMode": "auto"
+      },
+      "description": "",
+      "gridPos": {
+        "h": 4,
+        "w": 4,
+        "x": 8,
+        "y": 0
+      }
+    },
+    {
+      "id": 4,
+      "type": "stat",
+      "title": "팀 팬 펍",
+      "datasource": {
+        "type": "grafana-postgresql-datasource",
+        "uid": "travel-db"
+      },
+      "targets": [
+        {
+          "datasource": {
+            "type": "grafana-postgresql-datasource",
+            "uid": "travel-db"
+          },
+          "rawSql": "SELECT count(*) FROM pub WHERE club IS NOT NULL AND NOT hidden",
+          "format": "table",
+          "rawQuery": true,
+          "editorMode": "code",
+          "refId": "A"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "short",
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "blue",
+                "value": null
+              }
+            ]
+          }
+        },
+        "overrides": []
+      },
+      "options": {
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": "",
+          "values": false
+        },
+        "colorMode": "value",
+        "graphMode": "none",
+        "textMode": "auto",
+        "justifyMode": "auto"
+      },
+      "description": "",
+      "gridPos": {
+        "h": 4,
+        "w": 4,
+        "x": 12,
+        "y": 0
+      }
+    },
+    {
+      "id": 5,
+      "type": "stat",
+      "title": "가격 등록 항목",
+      "datasource": {
+        "type": "grafana-postgresql-datasource",
+        "uid": "travel-db"
+      },
+      "targets": [
+        {
+          "datasource": {
+            "type": "grafana-postgresql-datasource",
+            "uid": "travel-db"
+          },
+          "rawSql": "SELECT count(*) FROM stadium_item",
+          "format": "table",
+          "rawQuery": true,
+          "editorMode": "code",
+          "refId": "A"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "short",
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "blue",
+                "value": null
+              }
+            ]
+          }
+        },
+        "overrides": []
+      },
+      "options": {
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": "",
+          "values": false
+        },
+        "colorMode": "value",
+        "graphMode": "none",
+        "textMode": "auto",
+        "justifyMode": "auto"
+      },
+      "description": "",
+      "gridPos": {
+        "h": 4,
+        "w": 4,
+        "x": 16,
+        "y": 0
+      }
+    },
+    {
+      "id": 6,
+      "type": "stat",
+      "title": "1년 넘은 가격",
+      "datasource": {
+        "type": "grafana-postgresql-datasource",
+        "uid": "travel-db"
+      },
+      "targets": [
+        {
+          "datasource": {
+            "type": "grafana-postgresql-datasource",
+            "uid": "travel-db"
+          },
+          "rawSql": "SELECT count(*) FROM stadium_item WHERE checked_on < current_date - interval '1 year'",
+          "format": "table",
+          "rawQuery": true,
+          "editorMode": "code",
+          "refId": "A"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "short",
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "green",
+                "value": null
+              },
+              {
+                "color": "orange",
+                "value": 1
+              }
+            ]
+          }
+        },
+        "overrides": []
+      },
+      "options": {
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": "",
+          "values": false
+        },
+        "colorMode": "value",
+        "graphMode": "none",
+        "textMode": "auto",
+        "justifyMode": "auto"
+      },
+      "description": "",
+      "gridPos": {
+        "h": 4,
+        "w": 4,
+        "x": 20,
+        "y": 0
+      }
+    },
+    {
+      "id": 7,
+      "type": "timeseries",
+      "title": "일별 여행 글 (KST)",
+      "datasource": {
+        "type": "grafana-postgresql-datasource",
+        "uid": "travel-db"
+      },
+      "targets": [
+        {
+          "datasource": {
+            "type": "grafana-postgresql-datasource",
+            "uid": "travel-db"
+          },
+          "rawSql": "SELECT date_trunc('day', created_at AT TIME ZONE 'Asia/Seoul') AT TIME ZONE 'Asia/Seoul' AS time, CASE category WHEN 'REVIEW' THEN '직관 후기' WHEN 'TIP' THEN '여행 팁' WHEN 'QUESTION' THEN '질문' ELSE '자유' END AS metric, count(*) AS value FROM post WHERE $__timeFilter(created_at) GROUP BY 1, 2 ORDER BY 1",
+          "format": "time_series",
+          "rawQuery": true,
+          "editorMode": "code",
+          "refId": "A"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "short",
+          "custom": {
+            "lineWidth": 1,
+            "fillOpacity": 60,
+            "showPoints": "never",
+            "stacking": {
+              "mode": "normal"
+            },
+            "drawStyle": "bars"
+          }
+        },
+        "overrides": []
+      },
+      "options": {
+        "legend": {
+          "displayMode": "list",
+          "placement": "bottom"
+        },
+        "tooltip": {
+          "mode": "multi",
+          "sort": "desc"
+        }
+      },
+      "description": "",
+      "gridPos": {
+        "h": 8,
+        "w": 12,
+        "x": 0,
+        "y": 4
+      }
+    },
+    {
+      "id": 8,
+      "type": "barchart",
+      "title": "팀별 여행 글 (기간)",
+      "datasource": {
+        "type": "grafana-postgresql-datasource",
+        "uid": "travel-db"
+      },
+      "targets": [
+        {
+          "datasource": {
+            "type": "grafana-postgresql-datasource",
+            "uid": "travel-db"
+          },
+          "rawSql": "SELECT CASE lower(club) WHEN 'arsenal' THEN '아스날' WHEN 'chelsea' THEN '첼시' WHEN 'liverpool' THEN '리버풀' WHEN 'mancity' THEN '맨시티' WHEN 'man_city' THEN '맨시티' WHEN 'manutd' THEN '맨유' WHEN 'man_utd' THEN '맨유' WHEN 'tottenham' THEN '토트넘' WHEN 'other' THEN '기타' ELSE coalesce(club, '미정') END AS \"팀\", count(*) AS \"글\" FROM post WHERE $__timeFilter(created_at) GROUP BY 1 ORDER BY 2 DESC",
+          "format": "table",
+          "rawQuery": true,
+          "editorMode": "code",
+          "refId": "A"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "short",
+          "custom": {
+            "fillOpacity": 80
+          }
+        },
+        "overrides": []
+      },
+      "options": {
+        "orientation": "auto",
+        "showValue": "auto",
+        "xTickLabelRotation": 0,
+        "legend": {
+          "showLegend": false,
+          "displayMode": "list",
+          "placement": "bottom"
+        },
+        "tooltip": {
+          "mode": "single"
+        }
+      },
+      "description": "",
+      "gridPos": {
+        "h": 8,
+        "w": 12,
+        "x": 12,
+        "y": 4
+      }
+    },
+    {
+      "id": 9,
+      "type": "table",
+      "title": "제보",
+      "datasource": {
+        "type": "grafana-postgresql-datasource",
+        "uid": "travel-db"
+      },
+      "targets": [
+        {
+          "datasource": {
+            "type": "grafana-postgresql-datasource",
+            "uid": "travel-db"
+          },
+          "rawSql": "SELECT CASE kind WHEN 'ITEM' THEN '경기장 가격' ELSE '펍' END AS \"종류\", CASE lower(club) WHEN 'arsenal' THEN '아스날' WHEN 'chelsea' THEN '첼시' WHEN 'liverpool' THEN '리버풀' WHEN 'mancity' THEN '맨시티' WHEN 'man_city' THEN '맨시티' WHEN 'manutd' THEN '맨유' WHEN 'man_utd' THEN '맨유' WHEN 'tottenham' THEN '토트넘' WHEN 'other' THEN '기타' ELSE coalesce(club, '미정') END AS \"팀\", CASE status WHEN 'PENDING' THEN '대기' WHEN 'APPROVED' THEN '승인' ELSE '거절' END AS \"상태\", count(*) AS \"건수\" FROM guide_report WHERE $__timeFilter(created_at) OR status = 'PENDING' GROUP BY 1, 2, 3 ORDER BY 3, 4 DESC",
+          "format": "table",
+          "rawQuery": true,
+          "editorMode": "code",
+          "refId": "A"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "custom": {
+            "align": "auto",
+            "cellOptions": {
+              "type": "auto"
+            }
+          }
+        },
+        "overrides": []
+      },
+      "options": {
+        "showHeader": true,
+        "cellHeight": "sm"
+      },
+      "transformations": [],
+      "description": "",
+      "gridPos": {
+        "h": 8,
+        "w": 8,
+        "x": 0,
+        "y": 12
+      }
+    },
+    {
+      "id": 10,
+      "type": "table",
+      "title": "지역별 펍",
+      "datasource": {
+        "type": "grafana-postgresql-datasource",
+        "uid": "travel-db"
+      },
+      "targets": [
+        {
+          "datasource": {
+            "type": "grafana-postgresql-datasource",
+            "uid": "travel-db"
+          },
+          "rawSql": "SELECT city AS \"지역\", count(*) AS \"펍\", count(*) FILTER (WHERE shows_football) AS \"중계\", count(*) FILTER (WHERE club IS NOT NULL) AS \"팀 팬 펍\", max(updated_at) AS \"마지막 갱신\" FROM pub WHERE NOT hidden GROUP BY city ORDER BY 2 DESC",
+          "format": "table",
+          "rawQuery": true,
+          "editorMode": "code",
+          "refId": "A"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "custom": {
+            "align": "auto",
+            "cellOptions": {
+              "type": "auto"
+            }
+          }
+        },
+        "overrides": []
+      },
+      "options": {
+        "showHeader": true,
+        "cellHeight": "sm"
+      },
+      "transformations": [],
+      "description": "OpenStreetMap에서 매달 1일 다시 받는다",
+      "gridPos": {
+        "h": 8,
+        "w": 8,
+        "x": 8,
+        "y": 12
+      }
+    },
+    {
+      "id": 11,
+      "type": "table",
+      "title": "팀별 가격 항목",
+      "datasource": {
+        "type": "grafana-postgresql-datasource",
+        "uid": "travel-db"
+      },
+      "targets": [
+        {
+          "datasource": {
+            "type": "grafana-postgresql-datasource",
+            "uid": "travel-db"
+          },
+          "rawSql": "SELECT CASE lower(club) WHEN 'arsenal' THEN '아스날' WHEN 'chelsea' THEN '첼시' WHEN 'liverpool' THEN '리버풀' WHEN 'mancity' THEN '맨시티' WHEN 'man_city' THEN '맨시티' WHEN 'manutd' THEN '맨유' WHEN 'man_utd' THEN '맨유' WHEN 'tottenham' THEN '토트넘' WHEN 'other' THEN '기타' ELSE coalesce(club, '미정') END AS \"팀\", count(*) AS \"항목\", max(checked_on) AS \"최근 확인\" FROM stadium_item GROUP BY club ORDER BY 2 DESC",
+          "format": "table",
+          "rawQuery": true,
+          "editorMode": "code",
+          "refId": "A"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "custom": {
+            "align": "auto",
+            "cellOptions": {
+              "type": "auto"
+            }
+          }
+        },
+        "overrides": []
+      },
+      "options": {
+        "showHeader": true,
+        "cellHeight": "sm"
+      },
+      "transformations": [],
+      "description": "",
+      "gridPos": {
+        "h": 8,
+        "w": 8,
+        "x": 16,
+        "y": 12
+      }
+    },
+    {
+      "id": 12,
+      "type": "table",
+      "title": "댓글 많은 여행 글 (기간)",
+      "datasource": {
+        "type": "grafana-postgresql-datasource",
+        "uid": "travel-db"
+      },
+      "targets": [
+        {
+          "datasource": {
+            "type": "grafana-postgresql-datasource",
+            "uid": "travel-db"
+          },
+          "rawSql": "SELECT p.title AS \"제목\", CASE lower(p.club) WHEN 'arsenal' THEN '아스날' WHEN 'chelsea' THEN '첼시' WHEN 'liverpool' THEN '리버풀' WHEN 'mancity' THEN '맨시티' WHEN 'man_city' THEN '맨시티' WHEN 'manutd' THEN '맨유' WHEN 'man_utd' THEN '맨유' WHEN 'tottenham' THEN '토트넘' WHEN 'other' THEN '기타' ELSE coalesce(p.club, '미정') END AS \"팀\", p.category AS \"말머리\", p.comment_count AS \"댓글\", m.nickname AS \"글쓴이\", p.created_at AS \"작성\" FROM post p LEFT JOIN member_profile m ON m.member_id = p.author_id WHERE $__timeFilter(p.created_at) ORDER BY p.comment_count DESC, p.id DESC LIMIT 15",
+          "format": "table",
+          "rawQuery": true,
+          "editorMode": "code",
+          "refId": "A"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "custom": {
+            "align": "auto",
+            "cellOptions": {
+              "type": "auto"
+            }
+          }
+        },
+        "overrides": []
+      },
+      "options": {
+        "showHeader": true,
+        "cellHeight": "sm"
+      },
+      "transformations": [],
+      "description": "",
+      "gridPos": {
+        "h": 9,
+        "w": 24,
+        "x": 0,
+        "y": 20
+      }
+    }
+  ]
+}

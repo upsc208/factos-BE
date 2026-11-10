@@ -81,4 +81,6 @@ echo "[deploy] ❌ $SERVICE $TAG 헬스체크 실패 — ${PREV:-latest}로 되�
 compose logs --tail 80 "$SERVICE" || true
 set_tag "$PREV"
 compose up -d "$SERVICE"
+# 컨테이너를 다시 만들면 IP가 바뀐다 — nginx가 옛 주소로 502를 내지 않게 다시 읽힌다
+wait_healthy && reload_nginx || true
 exit 1
