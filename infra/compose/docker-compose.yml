@@ -98,6 +98,8 @@ services:
       REDIS_HOST: redis
       FOOTBALL_BASE_URL: http://backend:8080   # football-svc 공개 API·JWKS를 내부망으로
       WEB_ALLOWED_ORIGINS: ${SITE_URL}         # 글·댓글 쓰기 Origin 검사
+      SITE_URL: ${SITE_URL}                    # OSM(Overpass)에 보내는 User-Agent 연락처
+      TRAVEL_GBP_KRW: ${TRAVEL_GBP_KRW:-}      # 경기장 가격 원화 표시 (1파운드 = 몇 원)
     depends_on:
       travel-db:
         condition: service_healthy
