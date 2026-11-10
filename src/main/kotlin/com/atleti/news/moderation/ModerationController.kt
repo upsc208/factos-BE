@@ -126,39 +126,19 @@ data class AdminMemberResponse(
 
 /**
  * 운영자 전용 (`/api/admin 아래` — 관리자 토큰이나 X-Admin-Key). 회원에게 관리자 권한을 주고 뺀다.
- * 회원 관리자는 서로의 권한을 바꿀 수 없다.
+ * sadmin(ADMIN)을 만들 수 있는 곳은 여기뿐이다. 팀 관리자 지정은 sadmin도 사이트에서 한다 ([SadminController])
  */
 @Tag(name = "Admin Member API", description = "운영자: 회원 검색, 관리자 권한 부여")
 @RestController
 @RequestMapping("/api/admin/members")
-class AdminMemberController(
-    private val members: MemberRepository,
-    private val memberEvents: com.atleti.news.event.MemberEvents,
-) {
+class AdminMemberController(private val roles: MemberRoleService) {
 
     @Operation(summary = "닉네임으로 회원 찾기")
     @GetMapping
-    fun search(@RequestParam nickname: String): List<AdminMemberResponse> {
-        val key = nickname.trim().lowercase()
-        if (key.isEmpty()) throw InvalidRequestException("닉네임을 입력해 주세요.")
-        return members.findAllByNicknameKeyContaining(key).take(50).map(::toResponse)
-    }
+    fun search(@RequestParam nickname: String): List<AdminMemberResponse> = roles.search(nickname)
 
     @Operation(summary = "권한 바꾸기", description = "role: MEMBER | TEAM_ADMIN | ADMIN. TEAM_ADMIN이면 club(arsenal…) 필수")
     @PutMapping("/{id}/role")
-    @org.springframework.transaction.annotation.Transactional
-    fun changeRole(@PathVariable id: Long, @RequestBody body: MemberRoleRequest): AdminMemberResponse {
-        val member = members.findById(id).orElseThrow { NotFoundException("회원을 찾을 수 없습니다. ID: $id") }
-        val role = MemberRole.entries.find { it.name == body.role?.trim()?.uppercase() }
-            ?: throw InvalidRequestException("role은 MEMBER, TEAM_ADMIN, ADMIN 중 하나입니다.")
-        val club = if (role == MemberRole.TEAM_ADMIN) {
-            Club.fromId(body.club ?: "")?.id ?: throw InvalidRequestException("팀 관리자는 club(arsenal, chelsea, liverpool, mancity, manutd, tottenham)이 필요합니다.")
-        } else null
-        member.role = role.takeIf { it != MemberRole.MEMBER }
-        member.adminClub = club
-        return toResponse(members.save(member).also { memberEvents.updated(it) })
-    }
-
-    private fun toResponse(m: com.atleti.news.member.domain.Member) =
-        AdminMemberResponse(m.id!!, m.nickname, m.provider.name, m.effectiveRole, m.adminClub, m.createdAt)
+    fun changeRole(@PathVariable id: Long, @RequestBody body: MemberRoleRequest): AdminMemberResponse =
+        roles.change(id, body, allowed = MemberRole.entries.toSet())
 }

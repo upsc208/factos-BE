@@ -84,11 +84,12 @@ GHCR 패키지는 처음 올라가면 비공개다. 서버가 받으려면 패�
 backend·travel ─ /actuator/prometheus ─┐
 cadvisor (컨테이너) ───────────────────┼▶ Prometheus (30일·5GB) ─▶ Grafana ◀─ factos DB · travel DB (읽기 전용 grafana_ro)
 node-exporter (서버) ──────────────────┘                             ▲
-                                                     127.0.0.1:3001만 — ssh -L 3001:localhost:3001 <서버>
+                                       사이트 /grafana/ (sadmin 로그인만, nginx auth_request) · 비상용 127.0.0.1:3001 (ssh -L)
 ```
 
 - compose profile `monitoring`이라 `.env`에 `COMPOSE_PROFILES=monitoring`이 있어야 뜬다. `GRAFANA_ADMIN_PASSWORD`·`GRAFANA_DB_PASSWORD`도 필요 (비면 Grafana가 안 뜬다 — 나머지 서비스는 영향 없음)
-- 보기: 내 PC에서 `ssh -L 3001:localhost:3001 <계정>@<서버>` → `http://localhost:3001` (admin / `GRAFANA_ADMIN_PASSWORD`). 인터넷에는 열지 않는다
+- 보기: 사이트에 **sadmin**(Member.role=ADMIN)으로 로그인 → `/admin` "통계" 탭 → `/grafana/` (보기 전용). nginx가 요청마다 백엔드 `/api/auth/stats-access`로 sadmin인지 확인하고, 아니면 401→`/me`, 403
+- 비상용(사이트가 죽었을 때): `ssh -L 3001:localhost:3001 <계정>@<서버>` → `http://localhost:3001/grafana/` (admin / `GRAFANA_ADMIN_PASSWORD`, 편집 가능)
 - 대시보드 (factos 폴더)
   - **서버 상태**: 서비스 생존, 요청/초, p95 응답 시간, 4xx·5xx, 느린·많이 불린 API, 크롤러 추출·번역 시간과 결과, JVM 힙·GC, DB 연결, 컨테이너·서버 CPU·메모리·디스크
   - **유저 · 기사**: 가입·로그인(24시간·7일)·응원팀·로그인 방식, 팀별 수집 기사·조회수, 출처별, 번역 대기·완료율, 많이 본 기사, 댓글·신고, 수집 시간·실패, 팬 평점

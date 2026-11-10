@@ -106,4 +106,5 @@ interface MemberRepository : JpaRepository<Member, Long> {
     fun existsByNicknameKey(nicknameKey: String): Boolean
     fun findByNicknameKey(nicknameKey: String): Member?
     fun findAllByNicknameKeyContaining(part: String): List<Member>
+    fun findAllByRoleIn(roles: Collection<MemberRole>): List<Member>
 }

@@ -160,7 +160,8 @@ services:
     logging: *logging
 
   # ── 운영 통계 (profile "monitoring": .env에 COMPOSE_PROFILES=monitoring 을 넣어야 뜬다) ──
-  # Grafana는 서버 안(127.0.0.1:3001)에만 열린다 → ssh -L 3001:localhost:3001 로 본다. 나머지는 포트를 열지 않는다
+  # Grafana: 사이트 /grafana/ (sadmin 로그인만, nginx auth_request) + 비상용 서버 안 127.0.0.1:3001 (ssh -L, admin 비밀번호).
+  # 나머지는 포트를 열지 않는다
   prometheus:
     image: prom/prometheus:v3.5.0
     profiles: [monitoring]
@@ -246,6 +247,15 @@ services:
       GF_NEWS_NEWS_FEED_ENABLED: "false"
       GF_DATE_FORMATS_DEFAULT_TIMEZONE: Asia/Seoul
       GF_DASHBOARDS_DEFAULT_HOME_DASHBOARD_PATH: /var/lib/grafana/dashboards/system.json
+      # 사이트 /grafana/ 아래에서 연다 (nginx가 sadmin만 들여보낸다 — nginx.conf "통계")
+      GF_SERVER_ROOT_URL: ${SITE_URL}/grafana/
+      GF_SERVER_SERVE_FROM_SUB_PATH: "true"
+      # nginx가 확인한 sadmin을 X-WEBAUTH-USER(sadmin-<회원 id>)로 넘긴다 → 보기 전용(Viewer)으로 자동 로그인
+      GF_AUTH_PROXY_ENABLED: "true"
+      GF_AUTH_PROXY_HEADER_NAME: X-WEBAUTH-USER
+      GF_AUTH_PROXY_HEADER_PROPERTY: username
+      GF_AUTH_PROXY_AUTO_SIGN_UP: "true"
+      GF_USERS_AUTO_ASSIGN_ORG_ROLE: Viewer
       # 데이터 소스 파일(datasources.yml)이 읽는 값
       POSTGRES_DB: ${POSTGRES_DB}
       GRAFANA_DB_PASSWORD: ${GRAFANA_DB_PASSWORD:-}
